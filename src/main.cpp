@@ -8,15 +8,15 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WebServer.h>
-#include <ESPmDNS.h>
-#include "wifi_config.h"
+//#include <ESPmDNS.h>
 
 // ==========================================
-// CONFIGURARE WI-FI (din wifi_config.h)
+// CONFIGURARE WI-FI
+// Înlocuiește valorile de mai jos cu cele ale companiei tale
 // ==========================================
-const char* ssid     = WIFI_SSID;
-const char* password = WIFI_PASSWORD;
-
+const char* ssid     = "DUBA DE FILAJ NR. 20";
+const char* password = "test1234";
+//const char* password ="";
 // ==========================================
 // CONFIGURARE HARDWARE
 // Majoritatea plăcuțelor ESP32-C3 au LED-ul pe pinul 8 sau 10.
@@ -166,13 +166,14 @@ void setup() {
   Serial.println("[SERVER] Serverul HTTP a pornit pe portul 80");
   
   // Pornim mDNS - placuta va fi accesibila si la adresa: http://esp32.local
-  if (MDNS.begin("esp32")) {
-    Serial.println("[mDNS] Activ! Acceseaza: http://esp32.local");
-  } else {
-    Serial.println("[mDNS] Eroare la pornirea mDNS.");
-  }
+  //if (MDNS.begin("esp32")) {
+  //  Serial.println("[mDNS] Activ! Acceseaza: http://esp32.local");
+  //} else {
+  //  Serial.println("[mDNS] Eroare la pornirea mDNS.");
+  //}
 }
-
+ //http://172.27.53.100/led/toggle - url ptr toggle de pin
+ //http://172.27.53.100/status - url ptr verificare status 
 void loop() {
   // Gestionează cererile clienților în mod continuu
   server.handleClient();
