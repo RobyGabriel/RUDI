@@ -20,3 +20,40 @@ Rulând pe laptopul tău de dezvoltare, ngrok direcționează serverul tău loca
 Implementate pe telefoanele de testare (prin EAS) și pe ESP32 (prin ElegantOTA/ArduinoOTA), aceste instrumente îți permit să trimiți remedieri de cod wireless către hardware și aplicație, fără a fi nevoie de cabluri USB.
 10. mDNS (Multicast DNS)
 Configurat în rețeaua ta locală, mDNS permite modulului ESP32 și aplicației Expo să localizeze backend-ul folosind un nume de domeniu local permanent (cum ar fi rudi-server.local) în locul unei adrese IP care se schimbă la fiecare repornire a routerului.
+
+De fiecare dată când lucrezi la proiect cu aplicatia
+
+1. Pornește backend-ul (Terminal 1)
+
+bashcd rudi-backend
+source venv/bin/activate
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+Verifică că vezi în terminal:
+
+INFO:     Uvicorn running on http://0.0.0.0:8000
+
+2. Pornește ngrok (Terminal 2 — separat, ambele rămân deschise)
+
+bashngrok http 8000
+
+Copiază URL-ul afișat, de tipul:
+
+Forwarding    https://xxxx-xxxx.ngrok-free.app -> http://localhost:8000
+
+3. Actualizează .env din rudi-app
+
+EXPO_PUBLIC_WS_URL=wss://xxxx-xxxx.ngrok-free.app/ws
+
+⚠️ wss://, NU ws:// — ngrok folosește HTTPS/TLS.
+
+4. Repornește Expo
+
+bashcd rudi-app
+npx expo start
+
+(.env se citește doar la pornire — dacă Expo rula deja, oprește-l cu Ctrl+C și repornește.)
+
+5. Testează pe telefon
+
+Deschide aplicația în Expo Go → indicatorul de status ar trebui să devină verde (connected).
