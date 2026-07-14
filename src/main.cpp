@@ -9,12 +9,13 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
+#include "wifi_config.h"
 
 // ==========================================
-// CONFIGURARE WI-FI
+// CONFIGURARE WI-FI (din wifi_config.h)
 // ==========================================
-const char* ssid     = "DUBA DE FILAJ NR. 20";
-const char* password = "test1234";
+const char* ssid     = WIFI_SSID;
+const char* password = WIFI_PASSWORD;
 
 // ==========================================
 // CONFIGURARE HARDWARE

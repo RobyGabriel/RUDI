@@ -3,9 +3,6 @@
 .pioenvs/
 .piolibdeps/
 
-# Fisier cu date sensibile (parole Wi-Fi) - NU se urca pe Git!
-src/wifi_config.h
-
 # VS Code
 .vscode/
 
