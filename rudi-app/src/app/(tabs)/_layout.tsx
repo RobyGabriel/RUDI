@@ -1,34 +1,80 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
+// ============================================================
+// src/app/(tabs)/_layout.tsx
+// ------------------------------------------------------------
+// Definește tab-urile din bara de jos.
+// Am înlocuit "Explore" cu "Profil" și am adăugat iconuri.
+// ============================================================
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Tabs, useRouter } from 'expo-router';
+import { useRobotStore } from '../../store/useRobotStore';
+import { Text, View } from 'react-native';
+
+// Componentă simplă pentru iconul unui tab (text emoji)
+function TabIcon({ icon, focused }: { icon: string; focused: boolean }) {
+  return (
+    <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.5 }}>{icon}</Text>
+  );
+}
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const currentUser = useRobotStore((s) => s.currentUser);
+  const notifications = useRobotStore((s) => s.notifications);
+
+  // Calculăm numărul de notificări active (care nu au fost încă livrate) pentru utilizatorul curent
+  const activeCount = notifications.filter(
+    (n) => n.to.id === currentUser?.id && n.status === 'in_transit'
+  ).length;
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
+        tabBarStyle: {
+          backgroundColor: '#161929',
+          borderTopColor: 'rgba(255,255,255,0.08)',
+          borderTopWidth: 1,
+          height: 64,
+          paddingBottom: 8,
+        },
+        tabBarActiveTintColor: '#6366F1',
+        tabBarInactiveTintColor: '#475569',
+      }}
+    >
+      {/* Tab Home — vizibil pentru toți */}
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: 'Acasă',
+          tabBarIcon: ({ focused }) => <TabIcon icon="🏠" focused={focused} />,
         }}
       />
+
+      {/* Tab Inbox — vizibil pentru toți */}
+      <Tabs.Screen
+        name="inbox"
+        options={{
+          title: 'Inbox',
+          tabBarIcon: ({ focused }) => <TabIcon icon="🔔" focused={focused} />,
+          // Afișăm bulina roșie cu numărul de notificări active dacă acesta este > 0
+          tabBarBadge: activeCount > 0 ? activeCount : undefined,
+        }}
+      />
+
+      {/* Tab Admin a fost mutat in Profil pentru a evita dublarea rotitei de angajati */}
+
+      {/* Tab Profil — vizibil pentru toți */}
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profil',
+          tabBarIcon: ({ focused }) => <TabIcon icon="👤" focused={focused} />,
+        }}
+      />
+
+      {/* Ascundem explore (ecranul vechi) */}
       <Tabs.Screen
         name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
+        options={{ href: null }}
       />
     </Tabs>
   );
