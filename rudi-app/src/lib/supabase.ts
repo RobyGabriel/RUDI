@@ -20,10 +20,10 @@ export type User = {
 // În producție, acestea vor fi în baza de date Supabase
 let MOCK_USERS: (User & { password: string })[] = [
   { id: '1', email: 'admin@thecon.ro', password: 'Admin123!', name: 'Administrator', office: 'IT', role: 'admin' },
-  { id: '2', email: 'darius@thecon.ro', password: 'Pass123!', name: 'Darius Popescu', office: 'Birou 101', role: 'employee' },
-  { id: '3', email: 'ion@thecon.ro', password: 'Pass123!', name: 'Ion Marinescu', office: 'Birou 202', role: 'employee' },
-  { id: '4', email: 'roby@thecon.ro', password: 'Pass123!', name: 'Roby Gabriel', office: 'Birou 303', role: 'employee' },
-  { id: '5', email: 'ana@thecon.ro', password: 'Pass123!', name: 'Ana Ionescu', office: 'Birou 404', role: 'employee' },
+  { id: '2', email: 'darius@thecon.ro', password: 'Pass123!', name: 'Darius Stoica', office: 'Birou 101', role: 'employee' },
+  { id: '3', email: 'ionut@thecon.ro', password: 'Pass123!', name: 'Ionut Ichim', office: 'Birou 202', role: 'employee' },
+  { id: '4', email: 'robert@thecon.ro', password: 'Pass123!', name: 'Roby Gabriel', office: 'Birou 303', role: 'employee' },
+  { id: '5', email: 'cristi@thecon.ro', password: 'Pass123!', name: 'Cristi Campeanu', office: 'Birou 404', role: 'employee' },
 ];
 
 // Sesiunea curentă (în memorie — va fi în SecureStore când adăugăm Supabase)
