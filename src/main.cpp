@@ -14,9 +14,8 @@
 // CONFIGURARE WI-FI
 // Înlocuiește valorile de mai jos cu cele ale companiei tale
 // ==========================================
-const char* ssid     = "DUBA DE FILAJ NR. 20";
-const char* password = "test1234";
-//const char* password ="";
+const char* ssid     = "Thecon Guest";
+const char* password = "";
 // ==========================================
 // CONFIGURARE HARDWARE
 // Majoritatea plăcuțelor ESP32-C3 au LED-ul pe pinul 8 sau 10.
@@ -133,7 +132,7 @@ void setup() {
   Serial.println(ssid);
   
   // Aplicam configuratia de IP static inainte de conectare
-  WiFi.config(staticIP, gateway, subnet);
+  // WiFi.config(staticIP, gateway, subnet); // Dezactivat pentru Thecon Guest, lasam routerul sa ne dea IP corect
   WiFi.begin(ssid, password);
   
   // Așteptăm să se conecteze (afișăm puncte în Serial Monitor) - mărim timpul la 30 de secunde (60 încercări)
