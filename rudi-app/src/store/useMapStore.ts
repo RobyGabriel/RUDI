@@ -13,13 +13,35 @@ export type RobotPose = {
   x: number; // in meters
   y: number; // in meters
   heading: number; // in radians
+  is_moving?: boolean;
+};
+
+// Types matching your Python backend
+export type Station = {
+  name: string;
+  station_id: string;
+  x: number;
+  y: number;
+};
+
+export type Obstacle = {
+  id: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  detected_at: string;
 };
 
 type MapStore = {
   mapData: MapData | null;
   robotPose: RobotPose;
+  stations: Station[];
+  obstacles: Obstacle[];
+  
   setMapData: (data: MapData) => void;
   updateRobotPose: (pose: Partial<RobotPose>) => void;
+  setMapSnapshot: (stations: Station[], obstacles: Obstacle[], robot?: RobotPose) => void;
   loadMockMap: () => void;
 };
 
@@ -27,6 +49,8 @@ type MapStore = {
 export const useMapStore = create<MapStore>((set) => ({
   mapData: null,
   robotPose: { x: 0, y: 0, heading: 0 },
+  stations: [],
+  obstacles: [],
 
   setMapData: (data) => set({ mapData: data }),
   
@@ -34,13 +58,20 @@ export const useMapStore = create<MapStore>((set) => ({
     robotPose: { ...state.robotPose, ...pose } 
   })),
 
+  // Save the full snapshot from the Python backend
+  setMapSnapshot: (stations, obstacles, robot) => set((state) => ({
+    stations,
+    obstacles,
+    // Only update the robot if the backend sent valid coordinates
+    robotPose: robot ? { ...state.robotPose, ...robot } : state.robotPose
+  })),
+
   // Generates a simple 10x10 mock room with a wall in the middle
   loadMockMap: () => {
-    const width = 10;
-    const height = 10;
-    const grid = new Array(width * height).fill(0); // Fill with free space (0)
+    const width = 50;
+    const height = 30;
+    const grid = new Array(width * height).fill(0); 
     
-    // Draw a fake wall (value 100)
     for(let i = 2; i < 8; i++) {
         grid[i * width + 5] = 100; 
     }
@@ -49,12 +80,10 @@ export const useMapStore = create<MapStore>((set) => ({
       mapData: {
         width,
         height,
-        resolution: 0.5, // each cell is 0.5 meters
+        resolution: 0.5, 
         origin: { x: 0, y: 0 },
         grid
-      },
-      // Start the robot in a safe spot
-      robotPose: { x: 2, y: 2, heading: 0 }
+      }
     });
   }
 }));

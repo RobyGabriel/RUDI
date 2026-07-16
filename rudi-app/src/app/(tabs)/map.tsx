@@ -3,12 +3,12 @@ import React from 'react';
 import { StyleSheet } from 'react-native';
 // IMPORT FROM THE NEW LIBRARY:
 import { SafeAreaView } from 'react-native-safe-area-context'; 
-import mapRenderer from '../../components/mapRenderer';
+import MapRenderer from '../../components/mapRenderer'; // capitalized import
 
 export default function MapTabScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      {mapRenderer()}
+      <MapRenderer />
     </SafeAreaView>
   );
 }
