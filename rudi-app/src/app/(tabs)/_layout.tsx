@@ -1,34 +1,80 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
+import { Tabs, useRouter } from 'expo-router';
+import { useRobotStore } from '../../store/useRobotStore';
+import { Text, View } from 'react-native';
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+// Componentă simplă pentru iconul unui tab (text emoji)
+function TabIcon({ icon, focused }: { icon: string; focused: boolean }) {
+  return (
+    <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.5 }}>{icon}</Text>
+  );
+}
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const currentUser = useRobotStore((s) => s.currentUser);
+  const notifications = useRobotStore((s) => s.notifications);
+
+  // Calculăm numărul de notificări active (care nu au fost încă livrate) pentru utilizatorul curent
+  const activeCount = notifications.filter(
+    (n) => n.to.id === currentUser?.id && n.status === 'in_transit'
+  ).length;
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
+        tabBarStyle: {
+          backgroundColor: '#161929',
+          borderTopColor: 'rgba(255,255,255,0.08)',
+          borderTopWidth: 1,
+          height: 64,
+          paddingBottom: 8,
+        },
+        tabBarActiveTintColor: '#6366F1',
+        tabBarInactiveTintColor: '#475569',
+      }}
+    >
+      {/* 1. Tab Home — vizibil pentru toți */}
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: 'Acasă',
+          tabBarIcon: ({ focused }) => <TabIcon icon="🏠" focused={focused} />,
         }}
       />
+
+      {/* 2. Tab Hartă — Aici controlăm tab-ul map.tsx */}
+      <Tabs.Screen
+        name="map"
+        options={{
+          title: 'Hartă',
+          tabBarIcon: ({ focused }) => <TabIcon icon="🗺️" focused={focused} />,
+        }}
+      />
+
+      {/* 3. Tab Inbox — vizibil pentru toți */}
+      <Tabs.Screen
+        name="inbox"
+        options={{
+          title: 'Inbox',
+          tabBarIcon: ({ focused }) => <TabIcon icon="🔔" focused={focused} />,
+          // Afișăm bulina roșie cu numărul de notificări active dacă acesta este > 0
+          tabBarBadge: activeCount > 0 ? activeCount : undefined,
+        }}
+      />
+
+      {/* 4. Tab Setări / Profil */}
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Setări',
+          tabBarIcon: ({ focused }) => <TabIcon icon="⚙️" focused={focused} />,
+        }}
+      />
+
+      {/* Ascundem explore (ecranul vechi) */}
       <Tabs.Screen
         name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
+        options={{ href: null }}
       />
     </Tabs>
   );
