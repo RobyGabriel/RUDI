@@ -38,6 +38,52 @@ Atenție: dacă ESP-ul îngheață cu motorul pornit, motorul **continuă să me
 ~12 secunde** până îl oprește watchdog-ul prin reset. Ține mâna pe alimentare
 la primele teste.
 
+## 💀 Studiu de caz: cum ne-a ars EMI-ul jumătate de driver (iul 2026)
+
+Am rulat săptămâni întregi FĂRĂ condensatoarele de mai sus. Rezultatul, pe un
+driver BESTEP cu două punți H (8× MOSFET RU6099R, Q1–Q4 = canalul 1,
+Q5–Q8 = canalul 2): un vârf de tensiune a **scurtcircuitat Q1** (high-side) și
+a **străpuns porțile la Q1 și Q2** — toată jumătatea stângă a punții canalului 1.
+
+Partea perfidă: **defectul e invizibil luni de zile.** Cu high-side-ul în scurt,
+sensul „înainte" merge perfect (tranzistorul e oricum „mereu pornit"). Doar la
+„înapoi" nu există drum de curent: motorul stă complet mut, fără zumzet, fără
+fum, la orice PWM. Dacă motorul tău merge într-un singur sens — citește mai jos
+înainte să dai vina pe cod.
+
+### Cum diagnostichezi în 10 minute (comenzile sunt deja în firmware)
+
+1. **Semnalul DIR ajunge la driver?** Trimite `L` apoi `H` și măsoară cu
+   multimetrul pe pinul DIR al driverului față de GND: trebuie ~0 V la `L` și
+   ~3,3 V la `H`. Dacă da, ESP-ul și cablajul sunt nevinovate.
+2. **Driverul scoate tensiune în ambele sensuri?** Sondele pe cele două borne
+   ale motorului (NU la GND!), apoi trimite `F` (înainte 99%, 10 s) și `B`
+   (înapoi 99%, 10 s). Driver sănătos: aproape tensiunea sursei, cu semn
+   schimbat între F și B (ex. +5,9 V / −5,9 V). Canal ars: plin într-un sens,
+   **0 V** în celălalt.
+3. **Care tranzistor e mort?** Sursa OPRITĂ, motorul deconectat, multimetrul pe
+   diode-test. La fiecare MOSFET (stânga=Gate, tab/mijloc=Drain, dreapta=Source),
+   trei măsurători, comparate mereu cu **geamănul din același loc de pe canalul
+   sănătos** (Q1↔Q5, Q2↔Q6...):
+   - A: roșu pe Source, negru pe Drain → normal ~0,4–0,55 V
+   - B: roșu pe Drain, negru pe Source → normal OL
+   - C: roșu pe Gate, negru pe Source (și invers) → normal OL
+   - **~0 V la A și B = FET în scurt. Conducție la C = poartă străpunsă.**
+   Orice diferă de geamăn = mortul. (Înainte de A/B atinge scurt Gate de Source,
+   să descarci poarta.)
+
+### Reparația
+
+Se schimbă **ambii** tranzistori ai jumătății afectate (ex. Q1+Q2), nu doar cel
+evident mort — perechea a încasat același stres. Înlocuitor: exact RU6099R sau
+orice N-MOSFET 60 V / ≤10 mΩ în aceeași capsulă. NU folosi FET-uri de înaltă
+tensiune din surse (gen 8N65: 650 V dar ~1,2 Ω — de 200× prea rezistiv, cade
+toată tensiunea pe el). Alternativa pragmatică: driver nou, iar cel cu un canal
+ars rămâne driver de rezervă pe canalul bun.
+
+Morala: **condensatoarele pe motoare se pun ÎNAINTE de prima pornire**, nu după
+prima pană.
+
 ## Instalare software
 
 1. Instalează [Python](https://www.python.org/downloads/) (bifează „Add to PATH")
