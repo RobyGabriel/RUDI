@@ -114,6 +114,7 @@ USB-ul nativ al C3-ului), și monitorul trebuie închis înainte de upload.
 | `T` | Test scurt ambele motoare pe rând (1 s per sens) |
 | `R` | Motor 1 înapoi la 99%, 2 secunde |
 | `F` / `B` | Măsurare motor 1 la 99%, 10 s (înainte/înapoi) — pentru multimetru |
+| `3` / `4` | Măsurare motor 2 la 99%, 10 s (înainte/înapoi) — la fel, pentru multimetru |
 | `L` / `H` | DIR1 forțat LOW/HIGH cu PWM 0 — pentru verificat cablajul cu multimetrul |
 | `X` | **STOP DE URGENȚĂ** — oprește tot, funcționează oricând, inclusiv în timpul testelor |
 

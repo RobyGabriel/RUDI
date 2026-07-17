@@ -87,23 +87,23 @@ void runMotor1ReverseTest() {
   Serial.println("MOTOR1 OPRIT");
 }
 
-void runMotor1OutputMeasurement(bool forward) {
+void runMotorOutputMeasurement(uint8_t motorNumber, bool forward) {
   if (testRunning) {
     return;
   }
 
   testRunning = true;
   stopMotors();
-  Serial.printf("MASURARE MOTOR1 %s: 99%%, 10 secunde\n",
+  Serial.printf("MASURARE MOTOR%u %s: 99%%, 10 secunde\n", motorNumber,
                 forward ? "INAINTE" : "INAPOI");
 
-  if (runMotor(1, forward, REVERSE_TEST_DUTY)) {
+  if (runMotor(motorNumber, forward, REVERSE_TEST_DUTY)) {
     waitWithEmergencyStop(10000);
   }
 
   stopMotors();
   testRunning = false;
-  Serial.println("MASURARE TERMINATA - MOTOR1 OPRIT");
+  Serial.printf("MASURARE TERMINATA - MOTOR%u OPRIT\n", motorNumber);
 }
 
 bool testOneMotor(uint8_t motorNumber) {
@@ -269,7 +269,7 @@ void setup() {
   delay(1500);
   Serial.println();
   Serial.println("BESTEP ESP32-C3 READY");
-  Serial.println("1/2=diag motor | F/B=masurare M1 | L/H=DIR1 | X=stop");
+  Serial.println("1/2=diag motor | F/B=masurare M1 | 3/4=masurare M2 | L/H=DIR1 | X=stop");
 }
 
 void loop() {
@@ -288,9 +288,13 @@ void loop() {
     } else if (command == 'R' || command == 'r') {
       runMotor1ReverseTest();
     } else if (command == 'F' || command == 'f') {
-      runMotor1OutputMeasurement(true);
+      runMotorOutputMeasurement(1, true);
     } else if (command == 'B' || command == 'b') {
-      runMotor1OutputMeasurement(false);
+      runMotorOutputMeasurement(1, false);
+    } else if (command == '3') {
+      runMotorOutputMeasurement(2, true);
+    } else if (command == '4') {
+      runMotorOutputMeasurement(2, false);
     } else if (command == 'L' || command == 'l') {
       stopMotors();
       digitalWrite(MOTOR1_DIR_PIN, LOW);
