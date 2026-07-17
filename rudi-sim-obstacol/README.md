@@ -6,6 +6,10 @@ un obiect în fața senzorului ultrasonic**, robotul oprește, ocolește obstaco
 folosind giroscopul, ajunge la "destinație" și așteaptă **scanarea unui tag
 RFID** drept confirmare de livrare.
 
+Robotul nu trebuie să fie încă montat pe șenile. Pentru demonstrația actuală,
+se ține pe un suport, cu roțile/motoarele libere, iar motoarele mimează mersul
+și evitarea.
+
 > **Notă pentru asistenți AI (Claude etc.):** tot ce e nevoie e în acest folder.
 > Pașii de build sunt în `stm32/build.ps1` (auto-detectează toolchain-ul) și în
 > secțiunea ESP32 de mai jos. Porturile seriale se află cu
@@ -56,9 +60,118 @@ ws.send('DEMO');  // comenzi: DEMO | GO | MOT | S | X
    Evenimentele cheie se pot detecta simplu după prefix:
    `OBSTACOL`, `=== AM AJUNS`, `=== LIVRARE CONFIRMATA`, `STOP DE URGENTA`.
 
-Dacă preferi ca ESP-ul să intre în rețeaua biroului în loc să-și facă AP
-(telefonul rămâne pe internet), decomentează varianta STA din
-`esp32-bridge/src/main.cpp` și folosește IP-ul afișat pe USB la pornire.
+### Conectare la ESP fără să desfaci cablajul
+
+ESP32-C3 rămâne legat la STM32 prin GPIO4/GPIO5 și GND pe toată durata
+testului. USB-ul poate rămâne conectat pentru alimentare și loguri; comenzile
+de operare se trimit separat, prin Wi-Fi.
+
+Pe laptopul colegului:
+
+1. Conectează Wi-Fi-ul la **`RUDI-ROBOT`**, parola **`rudi1234`**.
+2. Acceptă mesajul sistemului că rețeaua nu are internet.
+3. Deschide Chrome/Edge, apoi DevTools (`F12`) și fila Console.
+4. Rulează:
+
+```js
+const rudi = new WebSocket('ws://192.168.4.1:81');
+rudi.onopen = () => console.log('RUDI conectat');
+rudi.onmessage = ({ data }) => console.log('[RUDI]', data);
+rudi.onclose = () => console.log('RUDI deconectat');
+```
+
+5. Verifică legătura fără să pornești motoarele:
+
+```js
+rudi.send('S');
+```
+
+6. Cu roțile ridicate, testul poate fi pornit cu:
+
+```js
+rudi.send('DEMO');
+```
+
+Oprirea de urgență este:
+
+```js
+rudi.send('X');
+```
+
+Aceasta este o conexiune directă la ESP, nu la backend. Nu folosi URL-ul ngrok
+sau `EXPO_PUBLIC_WS_URL` pentru acest test direct.
+
+> Dacă Claude trebuie să rămână online în timpul testului, laptopul are nevoie
+> de o a doua cale către internet (de exemplu Ethernet sau un al doilea adaptor),
+> deoarece Wi-Fi-ul principal este conectat la AP-ul ESP. Firmware-ul din acest
+> branch pornește în prezent numai în mod Access Point. Comentariile despre STA
+> din `main.cpp` nu implementează efectiv conectarea la router.
+
+Controlul de mai sus nu cere deconectarea ESP-ului. În schimb, **actualizarea
+firmware-ului prin Wi-Fi nu este încă implementată**: prima încărcare și orice
+reflash folosesc momentan USB + PlatformIO.
+
+### Atenție: aplicația și ESP-ul nu folosesc încă același protocol
+
+În forma actuală:
+
+- aplicația Expo se conectează la backend-ul FastAPI și trimite/primește JSON;
+- ESP-ul expune alt WebSocket, la `ws://192.168.4.1:81`, și schimbă linii text
+  precum `DEMO`, `S`, `OBSTACOL...`;
+- serviciul `rudi-app/src/services/websocket.ts` execută `JSON.parse` pentru
+  fiecare mesaj, deci nu poate fi conectat direct la ESP fără un adaptor;
+- backend-ul retransmite mesaje între aplicații, dar nu este încă legat la ESP.
+
+Pentru integrarea completă trebuie ales unul dintre cele două trasee:
+
+1. aplicația păstrează WebSocket-ul către backend, iar backend-ul primește o
+   punte suplimentară către ESP; sau
+2. aplicația deschide un al doilea WebSocket direct către ESP și convertește
+   evenimentele text în stările sale interne.
+
+## Fluxul cerut pentru testul cu operator/Claude
+
+Fluxul țintă descris pentru demonstrație este:
+
+1. Operatorul/Claude pornește misiunea; motoarele mimează mersul înainte.
+2. Claude îi cere colegului să pună un obiect în fața HC-SR04.
+3. La detectarea obiectului, robotul oprește și mimează evitarea.
+4. Claude îi cere colegului să ia obiectul; după eliberarea traseului, robotul
+   revine pe direcția inițială și continuă.
+5. La destinație, robotul se oprește, iar Claude cere apropierea cartelei RFID.
+6. Citirea RFID confirmă identitatea/ajungerea, dar robotul trebuie să rămână
+   oprit și să aștepte confirmarea că hârtia a fost luată.
+7. Aplicația colegului trimite confirmarea de preluare; abia atunci testul se
+   încheie.
+
+### Ce face codul acum și ce mai lipsește
+
+Codul STM32 actual implementează mersul, detectarea obstacolului, manevra
+temporizată de ocolire, revenirea, oprirea la destinație și citirea RFID.
+Totuși:
+
+- după `OBSTACOL`, manevra pornește automat; nu există încă starea
+  `WAIT_CLEAR` care să aștepte scoaterea obiectului;
+- după citirea RFID, codul afișează imediat `LIVRARE CONFIRMATA` și încheie
+  misiunea;
+- nu există încă o comandă de confirmare a preluării hârtiei venită din
+  aplicație.
+
+Nu folosi o comandă goală (`""`) pentru confirmare. Puntea ESP adaugă doar un
+newline, iar parserul STM32 ignoră liniile fără conținut, deci nu se poate
+verifica sigur că o astfel de comandă a fost primită. Protocolul final ar
+trebui să folosească mesaje explicite, de exemplu:
+
+| Direcție | Mesaj propus | Rol |
+|---|---|---|
+| STM32 → aplicație | `OBSTACLE_DETECTED` | Claude cere scoaterea obiectului |
+| aplicație → STM32 | `PATH_CLEAR` | operatorul confirmă traseul liber |
+| STM32 → aplicație | `RFID_SCANNED UID=...` | cartela a fost citită |
+| aplicație → STM32 | `PAPER_TAKEN` | destinatarul confirmă preluarea |
+| STM32 → aplicație | `TEST_COMPLETE` | testul s-a încheiat |
+
+Aceste comenzi sunt propunerea pentru pasul următor; firmware-ul din branch nu
+le recunoaște încă.
 
 ## Hardware necesar
 

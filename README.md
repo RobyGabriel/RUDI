@@ -21,6 +21,29 @@ Implementate pe telefoanele de testare (prin EAS) și pe ESP32 (prin ElegantOTA/
 10. mDNS (Multicast DNS)
 Configurat în rețeaua ta locală, mDNS permite modulului ESP32 și aplicației Expo să localizeze backend-ul folosind un nume de domeniu local permanent (cum ar fi rudi-server.local) în locul unei adrese IP care se schimbă la fiecare repornire a routerului.
 
+## Branch-ul `simulare-evitare-obstacol`
+
+Codul pentru demonstrația pe banc este în
+[`rudi-sim-obstacol/`](rudi-sim-obstacol/README.md). Robotul nu trebuie să fie
+montat pe șenile pentru acest test: motoarele pot fi ținute cu roțile ridicate
+și vor mima mersul și manevra de evitare.
+
+ESP32-C3 rămâne conectat permanent la STM32 prin UART. Pentru control nu se
+scoate niciun cablu:
+
+1. Pornește ESP32 și STM32.
+2. De pe laptopul sau telefonul operatorului, conectează-te la Wi-Fi
+   **`RUDI-ROBOT`**, parola **`rudi1234`**.
+3. Deschide un client WebSocket la **`ws://192.168.4.1:81`**.
+4. Trimite mai întâi `S`, apoi `MOT` cu roțile ridicate, iar pentru scenariul
+   complet trimite `DEMO`. `X` oprește motoarele în orice moment.
+
+Această conexiune Wi-Fi este pentru **control și monitorizare**. Firmware-ul
+curent nu are încă OTA, deci o versiune nouă de firmware ESP se încarcă inițial
+prin USB. Instrucțiunile complete, inclusiv testarea din consola browserului și
+diferențele dintre fluxul implementat și fluxul final cu confirmare din
+aplicație, sunt în README-ul simulării.
+
 De fiecare dată când lucrezi la proiect cu aplicatia
 
 1. Pornește backend-ul (Terminal 1)
