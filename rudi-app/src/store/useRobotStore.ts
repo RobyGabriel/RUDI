@@ -71,7 +71,64 @@ export const useRobotStore = create<RobotStore>((set) => ({
   connectionStatus: 'connecting',
   lastMessage: null,
   setConnectionStatus: (status) => set({ connectionStatus: status }),
-  setLastMessage: (data) => set({ lastMessage: data }),
+  setLastMessage: (data) => {
+    set({ lastMessage: data });
+
+    const type = data.type as string;
+    const currentUser = useRobotStore.getState().currentUser;
+
+    if (type === 'call_robot') {
+      const sender = data.sender as User;
+      if (sender) {
+        set({
+          robotStatus: 'coming_to_sender',
+          currentDelivery: { from: sender, to: null, startedAt: Date.now() },
+        });
+      }
+    } 
+    else if (type === 'robot_arrived_sender') {
+      set({ robotStatus: 'arrived_at_sender' });
+    } 
+    else if (type === 'start_delivery') {
+      const from = data.from_user as User;
+      const to = data.to_user as User;
+      if (from && to) {
+        const newNotif = {
+          id: String(Date.now()),
+          from,
+          to,
+          status: 'in_transit' as const,
+          timestamp: Date.now(),
+        };
+
+        set((state) => ({
+          robotStatus: 'in_transit',
+          currentDelivery: { from, to, startedAt: Date.now() },
+          notifications: [newNotif, ...state.notifications],
+        }));
+      }
+    } 
+    else if (type === 'robot_arrived_recipient') {
+      set({ robotStatus: 'arrived' });
+    } 
+    else if (type === 'delivery_confirmed' || type === 'confirm_delivery') {
+      set((state) => ({
+        robotStatus: 'idle',
+        currentDelivery: null,
+        notifications: state.notifications.map((n) =>
+          n.status === 'in_transit'
+            ? { ...n, status: 'delivered' as const }
+            : n
+        ),
+      }));
+    }
+    else if (type === 'reset_robot') {
+      set({
+        robotStatus: 'idle',
+        currentDelivery: null,
+      });
+    }
+  },
 
   // Utilizator
   currentUser: null,
@@ -127,7 +184,7 @@ export const useRobotStore = create<RobotStore>((set) => ({
       currentDelivery: null,
       // Marcăm toate notificările active ca fiind livrate
       notifications: state.notifications.map((n) =>
-        n.to.id === state.currentUser?.id && n.status === 'in_transit'
+        n.status === 'in_transit'
           ? { ...n, status: 'delivered' }
           : n
       ),

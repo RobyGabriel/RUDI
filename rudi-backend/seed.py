@@ -24,29 +24,29 @@ def seed():
             "role": "admin"
         },
         {
-            "name": "Darius Popescu",
+            "name": "Darius Stoica",
             "email": "darius@thecon.ro",
             "station_id": "Birou 101",
             "password": "Pass123!",
             "role": "employee"
         },
         {
-            "name": "Ion Marinescu",
-            "email": "ion@thecon.ro",
+            "name": "Ionut Ichim",
+            "email": "ionut@thecon.ro",
             "station_id": "Birou 202",
             "password": "Pass123!",
             "role": "employee"
         },
         {
             "name": "Roby Gabriel",
-            "email": "roby@thecon.ro",
+            "email": "robert@thecon.ro",
             "station_id": "Birou 303",
             "password": "Pass123!",
             "role": "employee"
         },
         {
-            "name": "Ana Ionescu",
-            "email": "ana@thecon.ro",
+            "name": "Cristi Campeanu",
+            "email": "cristi@thecon.ro",
             "station_id": "Birou 404",
             "password": "Pass123!",
             "role": "employee"

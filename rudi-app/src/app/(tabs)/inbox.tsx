@@ -16,24 +16,37 @@ export default function InboxScreen() {
   const notifications = useRobotStore((s) => s.notifications);
   const deleteNotification = useRobotStore((s) => s.deleteNotification);
 
-  // Filtrăm notificările care sunt adresate mie (utilizatorului curent)
-  const myNotifications = notifications.filter((n) => n.to.id === currentUser?.id);
+  // Filtrăm notificările care ne implică (fie eu primesc, fie eu am trimis)
+  const myNotifications = notifications.filter((n) => n.to.id === currentUser?.id || n.from.id === currentUser?.id);
 
   const handleNotificationPress = (notif: AppNotification) => {
-    // Dacă pachetul e încă pe drum sau a sosit, mergem la confirmare
-    if (notif.status === 'in_transit') {
+    // Mergem la confirmare doar dacă e activă și EU sunt destinatarul
+    if (notif.status === 'in_transit' && notif.to.id === currentUser?.id) {
       router.push('/confirm');
     }
   };
 
   const renderItem = ({ item }: { item: AppNotification }) => {
     const isActive = item.status === 'in_transit';
+    const isSender = item.from.id === currentUser?.id;
     
     // Formatăm ora (ex: 14:35)
     const timeStr = new Date(item.timestamp).toLocaleTimeString([], {
       hour: '2-digit',
       minute: '2-digit',
     });
+
+    const title = isActive 
+      ? (isSender ? 'Robotul este pe drum' : 'Robotul vine spre tine')
+      : (isSender ? 'Confirmare livrare' : 'Pachet primit cu succes');
+    
+    const body = isActive
+      ? (isSender 
+          ? `Robotul transportă documentele tale către ${item.to.name} (${item.to.office}).`
+          : `Angajatul ${item.from.name} ți-a trimis documente de la ${item.from.office}.`)
+      : (isSender
+          ? `Livrare reușită! ${item.to.name} a confirmat primirea documentelor tale.`
+          : `Ai preluat foile trimise de ${item.from.name}.`);
 
     return (
       <TouchableOpacity
@@ -44,19 +57,12 @@ export default function InboxScreen() {
         <View style={styles.headerRow}>
           <Text style={styles.icon}>{isActive ? '🚀' : '📦'}</Text>
           <View style={styles.titleCol}>
-            <Text style={styles.title}>
-              {isActive ? 'Robotul vine spre tine' : 'Pachet primit cu succes'}
-            </Text>
+            <Text style={styles.title}>{title}</Text>
             <Text style={styles.time}>{timeStr}</Text>
           </View>
         </View>
 
-        <Text style={styles.body}>
-          {isActive
-            ? `Angajatul ${item.from.name} ți-a trimis documente de la ${item.from.office}.`
-            : `Ai preluat foile trimise de ${item.from.name}.`
-          }
-        </Text>
+        <Text style={styles.body}>{body}</Text>
 
         <View style={styles.footerRow}>
           <View style={[styles.badge, isActive ? styles.badgeActive : styles.badgeDone]}>

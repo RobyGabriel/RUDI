@@ -14,7 +14,9 @@ export default function ProfileScreen() {
 
   // State-uri pentru schimbarea parolei
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const handleLogout = async () => {
@@ -28,6 +30,10 @@ export default function ProfileScreen() {
       Alert.alert('Eroare', 'Parola trebuie să aibă cel puțin 6 caractere.');
       return;
     }
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Eroare', 'Parolele nu se potrivesc. Vă rugăm să reintroduceți cu atenție.');
+      return;
+    }
 
     if (!currentUser) return;
 
@@ -36,7 +42,9 @@ export default function ProfileScreen() {
       await mockAuth.changePassword(currentUser.id, newPassword);
       Alert.alert('Succes', 'Parola a fost modificată cu succes.');
       setNewPassword('');
+      setConfirmPassword('');
       setShowPasswordChange(false);
+      setShowPassword(false);
     } catch (err) {
       Alert.alert('Eroare', 'Nu s-a putut schimba parola.');
     } finally {
@@ -90,18 +98,36 @@ export default function ProfileScreen() {
         {showPasswordChange ? (
           <View style={styles.pwCard}>
             <Text style={styles.pwTitle}>Schimbă parola</Text>
-            <TextInput
-              style={styles.input}
-              value={newPassword}
-              onChangeText={setNewPassword}
-              placeholder="Introduceți noua parolă"
-              placeholderTextColor="#475569"
-              secureTextEntry
-            />
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.inputWithIcon}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                placeholder="Noua parolă"
+                placeholderTextColor="#475569"
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity 
+                style={styles.eyeBtn} 
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Text style={styles.eyeIcon}>{showPassword ? '👁️‍🗨️' : '👁️'}</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.inputWithIcon}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="Confirmă parola"
+                placeholderTextColor="#475569"
+                secureTextEntry={!showPassword}
+              />
+            </View>
             <View style={styles.pwActions}>
               <TouchableOpacity 
                 style={styles.cancelBtn} 
-                onPress={() => { setShowPasswordChange(false); setNewPassword(''); }}
+                onPress={() => { setShowPasswordChange(false); setNewPassword(''); setConfirmPassword(''); setShowPassword(false); }}
               >
                 <Text style={styles.cancelBtnText}>Anulează</Text>
               </TouchableOpacity>
@@ -163,7 +189,10 @@ const styles = StyleSheet.create({
   changePwText: { color: '#94A3B8', fontSize: 15, fontWeight: '600' },
   pwCard: { backgroundColor: '#161929', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: 'rgba(99,102,241,0.2)', marginBottom: 16 },
   pwTitle: { fontSize: 15, fontWeight: '700', color: '#F8FAFC', marginBottom: 12 },
-  input: { backgroundColor: '#0D0F1A', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 12, padding: 12, color: '#F8FAFC', fontSize: 15, marginBottom: 14 },
+  inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0D0F1A', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 12, marginBottom: 14 },
+  inputWithIcon: { flex: 1, padding: 12, color: '#F8FAFC', fontSize: 15 },
+  eyeBtn: { padding: 12 },
+  eyeIcon: { fontSize: 16 },
   pwActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
   cancelBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.05)' },
   cancelBtnText: { color: '#94A3B8', fontSize: 14, fontWeight: '600' },

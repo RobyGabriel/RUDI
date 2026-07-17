@@ -16,34 +16,54 @@ export type User = {
   role: UserRole;
 };
 
-// ----- Date simulate -----
-// În producție, acestea vor fi în baza de date Supabase
-let MOCK_USERS: (User & { password: string })[] = [
-  { id: '1', email: 'admin@thecon.ro', password: 'Admin123!', name: 'Administrator', office: 'IT', role: 'admin' },
-  { id: '2', email: 'darius@thecon.ro', password: 'Pass123!', name: 'Darius Stoica', office: 'Birou 101', role: 'employee' },
-  { id: '3', email: 'ionut@thecon.ro', password: 'Pass123!', name: 'Ionut Ichim', office: 'Birou 202', role: 'employee' },
-  { id: '4', email: 'robert@thecon.ro', password: 'Pass123!', name: 'Roby Gabriel', office: 'Birou 303', role: 'employee' },
-  { id: '5', email: 'cristi@thecon.ro', password: 'Pass123!', name: 'Cristi Campeanu', office: 'Birou 404', role: 'employee' },
-];
-
-// Sesiunea curentă (în memorie — va fi în SecureStore când adăugăm Supabase)
+// Sesiunea curentă (în memorie)
 let _currentUser: User | null = null;
+
+// Funcție ajutătoare pentru URL-ul bazei de date și cheia API
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.0.22:8000';
+const API_KEY = process.env.EXPO_PUBLIC_API_KEY || 'rudi-secret-key-2026';
+
+// Wrapper peste fetch pentru a adăuga mereu cheia API
+const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
+  const headers = {
+    ...options.headers,
+    'x-api-key': API_KEY,
+  };
+  return fetch(`${API_URL}${endpoint}`, { ...options, headers });
+};
 
 // ----- Autentificare -----
 export const mockAuth = {
   // Încearcă să logheze un utilizator cu email + parolă
   signIn: async (email: string, password: string): Promise<{ user: User | null; error: string | null }> => {
-    // Simulăm delay-ul de rețea (0.8 secunde)
-    await new Promise((res) => setTimeout(res, 800));
+    try {
+      const response = await apiFetch('/employees/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
 
-    // Căutăm utilizatorul în lista mock
-    const found = MOCK_USERS.find((u) => u.email === email && u.password === password);
-    if (!found) return { user: null, error: 'Email sau parolă incorectă.' };
+      if (!response.ok) {
+        return { user: null, error: 'Email sau parolă incorectă.' };
+      }
 
-    // Eliminăm parola din obiectul returnat (nu trimitem parola prin aplicație!)
-    const { password: _pw, ...user } = found;
-    _currentUser = user;
-    return { user, error: null };
+      const data = await response.json();
+      
+      // Mapăm datele de la Python la interfața de User așteptată de aplicație
+      const user: User = {
+        id: String(data.id),
+        email: data.email,
+        name: data.name,
+        office: data.station_id,
+        role: data.role as UserRole
+      };
+      
+      _currentUser = user;
+      return { user, error: null };
+    } catch (err) {
+      console.error("Eroare la login:", err);
+      return { user: null, error: 'Eroare de rețea. Serverul este pornit?' };
+    }
   },
 
   // Delogare
@@ -56,11 +76,11 @@ export const mockAuth = {
 
   // Permite schimbarea parolei de către utilizator
   changePassword: async (userId: string, newPassword: string): Promise<void> => {
-    await new Promise((res) => setTimeout(res, 500));
-    const idx = MOCK_USERS.findIndex((u) => u.id === userId);
-    if (idx !== -1) {
-      MOCK_USERS[idx].password = newPassword;
-    }
+    await apiFetch(`/employees/${userId}/change-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ new_password: newPassword })
+    });
   },
 };
 
@@ -68,44 +88,93 @@ export const mockAuth = {
 export const mockEmployees = {
   // Resetează parola unui angajat la cea implicită
   resetPassword: async (userId: string): Promise<string> => {
-    await new Promise((res) => setTimeout(res, 500));
-    const defaultPassword = 'Pass123!';
-    const idx = MOCK_USERS.findIndex((u) => u.id === userId);
-    if (idx !== -1) {
-      MOCK_USERS[idx].password = defaultPassword;
-    }
-    return defaultPassword;
+    const res = await apiFetch(`/employees/${userId}/reset-password`, {
+      method: 'POST',
+    });
+    const data = await res.json();
+    return data.default_password || 'Pass123!';
   },
+  
   // Returnează toți angajații (fără admin)
   getAll: async (): Promise<User[]> => {
-    await new Promise((res) => setTimeout(res, 400));
-    return MOCK_USERS.filter((u) => u.role === 'employee').map(({ password: _pw, ...u }) => u);
+    try {
+      const res = await apiFetch(`/employees`);
+      const data = await res.json();
+      
+      // Mapăm în formatul dorit de aplicație
+      return data
+        .filter((u: any) => u.role === 'employee')
+        .map((u: any) => ({
+          id: String(u.id),
+          email: u.email,
+          name: u.name,
+          office: u.station_id,
+          role: u.role as UserRole
+        }));
+    } catch (err) {
+      console.error("Eroare get employees:", err);
+      return [];
+    }
   },
 
   // Creează un angajat nou
   create: async (data: Omit<User, 'id'> & { password: string }): Promise<User> => {
-    const newUser = { ...data, id: String(Date.now()) };
-    MOCK_USERS.push(newUser);
-    const { password: _pw, ...user } = newUser;
-    return user;
+    const res = await apiFetch(`/employees`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: data.name,
+        email: data.email,
+        station_id: data.office,
+        password: data.password,
+        role: data.role
+      })
+    });
+    const u = await res.json();
+    return {
+      id: String(u.id),
+      email: u.email,
+      name: u.name,
+      office: u.station_id,
+      role: u.role as UserRole
+    };
   },
 
   // Actualizează un angajat existent
   update: async (id: string, data: Partial<Omit<User, 'id'>>): Promise<void> => {
-    const idx = MOCK_USERS.findIndex((u) => u.id === id);
-    if (idx !== -1) Object.assign(MOCK_USERS[idx], data);
+    const payload: any = {};
+    if (data.name) payload.name = data.name;
+    if (data.email) payload.email = data.email;
+    if (data.office) payload.station_id = data.office;
+    if (data.role) payload.role = data.role;
+
+    await apiFetch(`/employees/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
   },
 
   // Șterge un angajat
   delete: async (id: string): Promise<void> => {
-    MOCK_USERS = MOCK_USERS.filter((u) => u.id !== id);
+    await apiFetch(`/employees/${id}`, { method: 'DELETE' });
   },
 
   // Caută un angajat după ID
   getById: async (id: string): Promise<User | null> => {
-    const found = MOCK_USERS.find((u) => u.id === id);
-    if (!found) return null;
-    const { password: _pw, ...user } = found;
-    return user;
+    try {
+      const res = await apiFetch(`/employees/${id}`);
+      if (!res.ok) return null;
+      const u = await res.json();
+      return {
+        id: String(u.id),
+        email: u.email,
+        name: u.name,
+        office: u.station_id,
+        role: u.role as UserRole
+      };
+    } catch {
+      return null;
+    }
   },
 };
