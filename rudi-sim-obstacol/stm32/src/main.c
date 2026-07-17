@@ -218,6 +218,13 @@ static void periph_init(void) {
   __HAL_RCC_USART6_CLK_ENABLE();
   uart_init_one(&huart1, USART1);
   uart_init_one(&huart6, USART6);
+  /* receptie pe intreruperi */
+  HAL_NVIC_SetPriority(USART1_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(USART1_IRQn);
+  HAL_NVIC_SetPriority(USART6_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(USART6_IRQn);
+  SET_BIT(USART1->CR1, USART_CR1_RXNEIE);
+  SET_BIT(USART6->CR1, USART_CR1_RXNEIE);
 
   __HAL_RCC_I2C1_CONFIG(RCC_I2C1CLKSOURCE_HSI);
   __HAL_RCC_I2C1_CLK_ENABLE();
@@ -376,13 +383,62 @@ static int32_t distance_mm(void) {
   return med == big ? -1 : med;
 }
 
-/* ---------- intrare seriala (ambele porturi, non-blocant) ---------- */
+/* ---------- intrare seriala pe intreruperi (USART-urile F7 nu au FIFO;
+   polling-ul pierdea al doilea octet din rafala prin overrun) ---------- */
+#define RB_SIZE 128
+static volatile uint8_t rb1_buf[RB_SIZE], rb6_buf[RB_SIZE];
+static volatile uint8_t rb1_head = 0, rb1_tail = 0;
+static volatile uint8_t rb6_head = 0, rb6_tail = 0;
+
+void USART1_IRQHandler(void) {
+  if (USART1->ISR & USART_ISR_RXNE) {
+    uint8_t c = (uint8_t)USART1->RDR;
+    uint8_t next = (uint8_t)((rb1_head + 1) % RB_SIZE);
+    if (next != rb1_tail) {
+      rb1_buf[rb1_head] = c;
+      rb1_head = next;
+    }
+  }
+  USART1->ICR = USART_ICR_ORECF | USART_ICR_FECF | USART_ICR_NCF;
+}
+
+void USART6_IRQHandler(void) {
+  if (USART6->ISR & USART_ISR_RXNE) {
+    uint8_t c = (uint8_t)USART6->RDR;
+    uint8_t next = (uint8_t)((rb6_head + 1) % RB_SIZE);
+    if (next != rb6_tail) {
+      rb6_buf[rb6_head] = c;
+      rb6_head = next;
+    }
+  }
+  USART6->ICR = USART_ICR_ORECF | USART_ICR_FECF | USART_ICR_NCF;
+}
+
+static bool rb1_pop(uint8_t *out) {
+  if (rb1_head == rb1_tail) {
+    return false;
+  }
+  *out = rb1_buf[rb1_tail];
+  rb1_tail = (uint8_t)((rb1_tail + 1) % RB_SIZE);
+  return true;
+}
+
+static bool rb6_pop(uint8_t *out) {
+  if (rb6_head == rb6_tail) {
+    return false;
+  }
+  *out = rb6_buf[rb6_tail];
+  rb6_tail = (uint8_t)((rb6_tail + 1) % RB_SIZE);
+  return true;
+}
+
 static char line1[32], line6[32];
 static int len1 = 0, len6 = 0;
 
 static const char *poll_uart(UART_HandleTypeDef *h, char *line, int *len) {
   uint8_t c;
-  while (HAL_UART_Receive(h, &c, 1, 0) == HAL_OK) {
+  bool is_vcp = (h == &huart1);
+  while (is_vcp ? rb1_pop(&c) : rb6_pop(&c)) {
     if (c == '\r' || c == '\n') {
       if (*len > 0) {
         line[*len] = 0;
