@@ -16,17 +16,49 @@ RFID** drept confirmare de livrare.
 ## Arhitectură
 
 ```
-PC / aplicație  ──USB──  ESP32-C3 SuperMini  ──UART──  STM32F769I-DISCO
- (colegul)               (punte transparentă)           │ driver motoare → 2 motoare DC
-                                                        │ HC-SR04 (obstacole)
-                                                        │ MPU6050 (viraje precise)
-                                                        └ RC522 (confirmare livrare)
+Telefon cu aplicația Expo ──WiFi/WebSocket──╮
+PC (debug)             ────USB────────────── ESP32-C3 ──UART── STM32F769I-DISCO
+                                             (punte)            │ driver motoare → 2 motoare DC
+                                                                │ HC-SR04 (obstacole)
+                                                                │ MPU6050 (viraje precise)
+                                                                └ RC522 (confirmare livrare)
 ```
 
-STM32-ul face toată treaba (motoare, senzori, misiune). ESP32-ul e doar puntea
-prin care aplicația vorbește cu robotul — **PC-ul se conectează NUMAI la USB-ul
-ESP-ului**. Pentru dezvoltare merge și direct pe consola ST-Link a plăcii STM32
-(al doilea port COM, același protocol).
+STM32-ul face toată treaba (motoare, senzori, misiune). ESP32-ul e puntea:
+ridică propria rețea WiFi și expune un **WebSocket** — exact ce știe să
+folosească o aplicație Expo/React Native fără niciun modul nativ, direct din
+Expo Go. Același protocol e disponibil și pe USB-ul ESP-ului (debug de pe
+laptop) și direct pe consola ST-Link a plăcii STM32 (al doilea port COM).
+
+## Integrare cu aplicația Expo (React Native)
+
+1. Telefonul se conectează la rețeaua WiFi a robotului:
+   SSID **`RUDI-ROBOT`**, parola **`rudi1234`** (ESP-ul e Access Point,
+   nu are nevoie de niciun router).
+2. În aplicație, un singur obiect `WebSocket` (API standard, merge în Expo Go):
+
+```js
+const ws = new WebSocket('ws://192.168.4.1:81');
+
+ws.onopen    = () => console.log('conectat la RUDI');
+ws.onmessage = (e) => {
+  // fiecare mesaj = o linie de la robot, ex.:
+  // "OBSTACOL la 18.3 cm — STOP!" sau "=== LIVRARE CONFIRMATA — UID=... ==="
+  console.log(e.data);
+};
+
+ws.send('DEMO');  // comenzi: DEMO | GO | MOT | S | X
+```
+
+3. Recomandări pentru aplicație: afișează liniile primite ca jurnal al
+   misiunii; butoane pentru `DEMO`/`GO` și un buton mare roșu care trimite
+   `X`; reconectare automată la `onclose` (dacă robotul se restartează).
+   Evenimentele cheie se pot detecta simplu după prefix:
+   `OBSTACOL`, `=== AM AJUNS`, `=== LIVRARE CONFIRMATA`, `STOP DE URGENTA`.
+
+Dacă preferi ca ESP-ul să intre în rețeaua biroului în loc să-și facă AP
+(telefonul rămâne pe internet), decomentează varianta STA din
+`esp32-bridge/src/main.cpp` și folosește IP-ul afișat pe USB la pornire.
 
 ## Hardware necesar
 
