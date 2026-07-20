@@ -3,7 +3,7 @@
 // ============================================================
 
 import { useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, Alert, ActivityIndicator, Platform } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { apiFetch } from '../../../lib/api';
 
@@ -38,7 +38,20 @@ export default function AdminUsersScreen() {
     }, [])
   );
 
-  const handleDelete = (user: Employee) => {
+  const handleDelete = async (user: Employee) => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(`Ești sigur că vrei să ștergi contul lui ${user.name}?`);
+      if (confirmed) {
+        try {
+          await apiFetch(`/employees/${user.id}`, { method: 'DELETE' });
+          loadUsers();
+        } catch (err) {
+          window.alert('Nu s-a putut șterge angajatul.');
+        }
+      }
+      return;
+    }
+
     Alert.alert(
       'Șterge angajat',
       `Ești sigur că vrei să ștergi contul lui ${user.name}?`,

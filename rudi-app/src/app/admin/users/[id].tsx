@@ -3,7 +3,7 @@
 // ============================================================
 
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { apiFetch } from '../../../lib/api';
 
@@ -28,15 +28,24 @@ export default function AdminEditUserScreen() {
           setLoading(false);
         })
         .catch(() => {
-          Alert.alert('Eroare', 'Angajatul nu a fost găsit.');
-          router.back();
+          if (Platform.OS === 'web') {
+            window.alert('Angajatul nu a fost găsit.');
+            router.back();
+          } else {
+            Alert.alert('Eroare', 'Angajatul nu a fost găsit.');
+            router.back();
+          }
         });
     }
   }, [id]);
 
   const handleUpdate = async () => {
     if (!name || !email || !stationId) {
-      Alert.alert('Eroare', 'Toate câmpurile sunt obligatorii.');
+      if (Platform.OS === 'web') {
+        window.alert('Toate câmpurile sunt obligatorii.');
+      } else {
+        Alert.alert('Eroare', 'Toate câmpurile sunt obligatorii.');
+      }
       return;
     }
 
@@ -46,11 +55,20 @@ export default function AdminEditUserScreen() {
         method: 'PUT',
         body: JSON.stringify({ name, email, station_id: stationId }),
       });
-      Alert.alert('Succes', 'Datele au fost salvate cu succes.', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
+      if (Platform.OS === 'web') {
+        window.alert('Datele au fost salvate cu succes.');
+        router.back();
+      } else {
+        Alert.alert('Succes', 'Datele au fost salvate cu succes.', [
+          { text: 'OK', onPress: () => router.back() }
+        ]);
+      }
     } catch (err: any) {
-      Alert.alert('Eroare', err.message || 'Nu s-au putut actualiza datele.');
+      if (Platform.OS === 'web') {
+        window.alert(err.message || 'Nu s-au putut actualiza datele.');
+      } else {
+        Alert.alert('Eroare', err.message || 'Nu s-au putut actualiza datele.');
+      }
     } finally {
       setSaving(false);
     }
@@ -58,6 +76,19 @@ export default function AdminEditUserScreen() {
 
   const handleResetPassword = async () => {
     if (typeof id !== 'string') return;
+
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('Ești sigur că vrei să resetezi parola acestui angajat la cea implicită (Pass123!)?');
+      if (confirmed) {
+        try {
+          const res = await apiFetch(`/employees/${id}/reset-password`, { method: 'POST' });
+          window.alert(`Succes: Parola a fost resetată la: ${res.default_password}`);
+        } catch (err) {
+          window.alert('Eroare: Nu s-a putut reseta parola.');
+        }
+      }
+      return;
+    }
 
     Alert.alert(
       'Resetare parolă',

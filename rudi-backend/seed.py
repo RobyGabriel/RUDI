@@ -15,43 +15,9 @@ def seed():
     create_db_and_tables()
 
     print("Seeding database...")
-    users = [
-        {
-            "name": "Administrator",
-            "email": "admin@thecon.ro",
-            "station_id": "IT",
-            "password": "Admin123!",
-            "role": "admin"
-        },
-        {
-            "name": "Darius Popescu",
-            "email": "darius@thecon.ro",
-            "station_id": "Birou 101",
-            "password": "Pass123!",
-            "role": "employee"
-        },
-        {
-            "name": "Ion Marinescu",
-            "email": "ion@thecon.ro",
-            "station_id": "Birou 202",
-            "password": "Pass123!",
-            "role": "employee"
-        },
-        {
-            "name": "Roby Gabriel",
-            "email": "roby@thecon.ro",
-            "station_id": "Birou 303",
-            "password": "Pass123!",
-            "role": "employee"
-        },
-        {
-            "name": "Ana Ionescu",
-            "email": "ana@thecon.ro",
-            "station_id": "Birou 404",
-            "password": "Pass123!",
-            "role": "employee"
-        }
-    ]
+    # S-au șters conturile mock (thecon.ro). 
+    # Dacă dorești să adaugi un administrator inițial, o poți face aici.
+    users = []
 
     with Session(engine) as session:
         for u in users:

@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import React, { useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { View, StyleSheet, Text, Dimensions } from 'react-native';
 import { useMapStore } from '../store/useMapStore';
 import { mockRosService } from '../services/mockRosService';
@@ -10,13 +11,15 @@ const VIEWPORT_HEIGHT = SCREEN_HEIGHT * 0.7; // portion of screen dedicated to t
 export default function MapRenderer() {
   const { mapData, robotPose, stations, obstacles } = useMapStore();
 
-  useEffect(() => {
-    // Just start the service. It handles everything else.
-    mockRosService.start();
+  useFocusEffect(
+    useCallback(() => {
+      // Just start the service. It handles everything else.
+      mockRosService.start();
 
-    // Clean up when the user navigates away to a different tab
-    return () => mockRosService.stop();
-  }, []); // <-- Empty array is crucial! It means this only runs exactly once.
+      // Clean up when the user navigates away to a different tab
+      return () => mockRosService.stop();
+    }, [])
+  );
 
   if (!mapData) {
     return (

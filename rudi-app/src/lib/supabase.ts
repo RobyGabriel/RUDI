@@ -55,10 +55,25 @@ function mapEmployeeToUser(emp: any): User {
   };
 }
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 let _currentUser: User | null = null;
 
 // ----- Autentificare -----
 export const mockAuth = {
+  initAuth: async (): Promise<User | null> => {
+    try {
+      const stored = await AsyncStorage.getItem('rudi_user');
+      if (stored) {
+        _currentUser = JSON.parse(stored);
+        return _currentUser;
+      }
+    } catch (e) {
+      console.error('Failed to load user session', e);
+    }
+    return null;
+  },
+
   signIn: async (email: string, password: string): Promise<{ user: User | null; error: string | null }> => {
     try {
       const data = await apiFetch('/employees/login', {
@@ -67,6 +82,7 @@ export const mockAuth = {
       });
       const user = mapEmployeeToUser(data);
       _currentUser = user;
+      await AsyncStorage.setItem('rudi_user', JSON.stringify(user));
       return { user, error: null };
     } catch (err: any) {
       return { user: null, error: err.message || 'Email sau parolă incorectă.' };
@@ -75,6 +91,7 @@ export const mockAuth = {
 
   signOut: async (): Promise<void> => {
     _currentUser = null;
+    await AsyncStorage.removeItem('rudi_user');
   },
 
   getCurrentUser: (): User | null => _currentUser,

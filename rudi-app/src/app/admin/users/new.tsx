@@ -3,7 +3,7 @@
 // ============================================================
 
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { apiFetch } from '../../../lib/api';
 
@@ -16,7 +16,11 @@ export default function AdminNewUserScreen() {
 
   const handleSave = async () => {
     if (!name || !email || !stationId) {
-      Alert.alert('Eroare', 'Toate câmpurile sunt obligatorii.');
+      if (Platform.OS === 'web') {
+        window.alert('Toate câmpurile sunt obligatorii.');
+      } else {
+        Alert.alert('Eroare', 'Toate câmpurile sunt obligatorii.');
+      }
       return;
     }
 
@@ -32,11 +36,20 @@ export default function AdminNewUserScreen() {
           role: 'employee',
         }),
       });
-      Alert.alert('Succes', 'Angajatul a fost creat cu succes.', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
+      if (Platform.OS === 'web') {
+        window.alert('Angajatul a fost creat cu succes.');
+        router.back();
+      } else {
+        Alert.alert('Succes', 'Angajatul a fost creat cu succes.', [
+          { text: 'OK', onPress: () => router.back() }
+        ]);
+      }
     } catch (err: any) {
-      Alert.alert('Eroare', err.message || 'Nu s-a putut salva utilizatorul.');
+      if (Platform.OS === 'web') {
+        window.alert(err.message || 'Nu s-a putut salva utilizatorul.');
+      } else {
+        Alert.alert('Eroare', err.message || 'Nu s-a putut salva utilizatorul.');
+      }
     } finally {
       setLoading(false);
     }

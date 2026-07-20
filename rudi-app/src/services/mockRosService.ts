@@ -1,7 +1,8 @@
 // src/services/mockRosService.ts
 import { useMapStore } from '../store/useMapStore';
 
-let pollingInterval: ReturnType<typeof setInterval> | null = null;
+let pollingInterval: ReturnType<typeof setTimeout> | null = null;
+let isPolling = false;
 
 export const mockRosService = {
   
@@ -9,9 +10,11 @@ start: () => {
   if (!useMapStore.getState().mapData) {
     useMapStore.getState().loadMockMap();
   }
-  if (pollingInterval) return;
+  if (isPolling) return;
+  isPolling = true;
 
   const poll = async () => {
+    if (!isPolling) return;
     try {
       const response = await fetch('https://dramatic-basically-mortified.ngrok-free.dev/map/full', {
         headers: {
@@ -35,13 +38,17 @@ start: () => {
     } catch (error) {
       console.error("Failed to fetch robot pose:", error);
     }
-    pollingInterval = setTimeout(poll, 1000);
+    
+    if (isPolling) {
+      pollingInterval = setTimeout(poll, 1000);
+    }
   };
 
   pollingInterval = setTimeout(poll, 0); // kick off immediately
 },
 
 stop: () => {
+  isPolling = false;
   if (pollingInterval) {
     clearTimeout(pollingInterval);
     pollingInterval = null;

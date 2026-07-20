@@ -1,28 +1,74 @@
 import { useRobotStore } from "../store/useRobotStore";
 
 let socket: WebSocket | null = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let isIntentionallyClosed = false;
 
 export function connectWebSocket(url: string) {
-  socket = new WebSocket(url);
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  
+  isIntentionallyClosed = false;
+  useRobotStore.getState().setConnectionStatus("connecting");
+  console.log("Încercare conectare WebSocket la:", url);
 
-  socket.onopen = () => {
-    useRobotStore.getState().setConnectionStatus("connected");
-  };
+  try {
+    socket = new WebSocket(url);
 
-  socket.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    useRobotStore.getState().setLastMessage(data);
-  };
+    socket.onopen = () => {
+      console.log("WebSocket conectat cu succes.");
+      useRobotStore.getState().setConnectionStatus("connected");
+    };
 
-  socket.onerror = () => {
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      useRobotStore.getState().setLastMessage(data);
+    };
+
+    socket.onerror = (err) => {
+      console.log("WebSocket eroare:", err);
+      useRobotStore.getState().setConnectionStatus("error");
+    };
+
+    socket.onclose = () => {
+      console.log("WebSocket închis.");
+      if (useRobotStore.getState().connectionStatus !== "error") {
+        useRobotStore.getState().setConnectionStatus("disconnected");
+      }
+      
+      if (!isIntentionallyClosed) {
+        console.log("Programare reconectare în 3 secunde...");
+        reconnectTimer = setTimeout(() => {
+          connectWebSocket(url);
+        }, 3000);
+      }
+    };
+  } catch (error) {
+    console.error("Eroare la instanțierea WebSocket:", error);
     useRobotStore.getState().setConnectionStatus("error");
-  };
-
-  socket.onclose = () => {
-    useRobotStore.getState().setConnectionStatus("disconnected");
-  };
+    if (!isIntentionallyClosed) {
+      reconnectTimer = setTimeout(() => {
+        connectWebSocket(url);
+      }, 3000);
+    }
+  }
 
   return socket;
+}
+
+export function disconnectWebSocket() {
+  isIntentionallyClosed = true;
+  if (socket) {
+    socket.close();
+    socket = null;
+  }
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  useRobotStore.getState().setConnectionStatus("disconnected");
 }
 
 export function sendCommand(command: object) {

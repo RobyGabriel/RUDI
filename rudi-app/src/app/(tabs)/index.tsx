@@ -8,8 +8,9 @@
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { connectWebSocket, sendCommand } from '../../services/websocket';
+import { connectWebSocket, disconnectWebSocket, sendCommand } from '../../services/websocket';
 import { useRobotStore } from '../../store/useRobotStore';
+import { apiFetch } from '../../lib/api';
 
 // Configurația vizuală pentru fiecare stare a robotului
 const STATUS_CONFIG = {
@@ -64,8 +65,8 @@ export default function HomeScreen() {
 
   // Conexiunea WebSocket (neatinsă)
   useEffect(() => {
-    const ws = connectWebSocket(process.env.EXPO_PUBLIC_WS_URL!);
-    return () => ws.close();
+    connectWebSocket(process.env.EXPO_PUBLIC_WS_URL!);
+    return () => disconnectWebSocket();
   }, []);
 
   const statusConfig = STATUS_CONFIG[robotStatus] ?? STATUS_CONFIG.idle;
@@ -73,18 +74,40 @@ export default function HomeScreen() {
   const isRecipient = currentDelivery?.to?.id === currentUser?.id;
 
   // Handler Chemare Robot (Pasul 1)
-  const handleCallRobot = () => {
+  const handleCallRobot = async () => {
     if (!currentUser) return;
     // Trimitem prin WebSocket
     sendCommand({ type: 'call_robot', sender_id: currentUser.id, sender: currentUser, status: 'coming_to_sender' });
     // Schimbăm starea în store local
     callRobot(currentUser);
+
+    // Pornim motorul robotului (pentru test)
+    try {
+      await apiFetch('/robot/command', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'start', speed: 50 }),
+      });
+      console.log('Comandă START trimisă cu succes');
+    } catch (e) {
+      console.error("Eroare la pornirea motorului:", e);
+    }
   };
 
   // Handler Confirmare Sosire la Mine (Pasul 2)
-  const handleConfirmArrival = () => {
+  const handleConfirmArrival = async () => {
     sendCommand({ type: 'robot_arrived_sender', status: 'arrived_at_sender' });
     confirmArrivalAtSender();
+
+    // Oprim motorul robotului
+    try {
+      await apiFetch('/robot/command', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'stop' }),
+      });
+      console.log('Comandă STOP trimisă cu succes');
+    } catch (e) {
+      console.error("Eroare la oprirea motorului:", e);
+    }
   };
 
   // Handler Confirmare Sosire la Destinatar (Pasul 4)

@@ -6,6 +6,7 @@ import { mockAuth } from '../lib/supabase';
 import { useRobotStore } from '../store/useRobotStore';
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { View, ActivityIndicator } from 'react-native';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -15,18 +16,21 @@ export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
   const { currentUser, setCurrentUser } = useRobotStore();
-  const [isMounted, setIsMounted] = useState(false);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    const user = mockAuth.getCurrentUser();
-    if (user) {
-      setCurrentUser(user);
+    async function loadSession() {
+      const user = await mockAuth.initAuth();
+      if (user) {
+        setCurrentUser(user);
+      }
+      setIsReady(true);
     }
-    setIsMounted(true);
+    loadSession();
   }, []);
 
   useEffect(() => {
-    if (!isMounted) return;
+    if (!isReady) return;
 
     const inAuthGroup = segments[0] === 'login';
 
@@ -35,7 +39,15 @@ export default function RootLayout() {
     } else if (currentUser && inAuthGroup) {
       router.replace('/(tabs)');
     }
-  }, [currentUser, segments, isMounted]);
+  }, [currentUser, segments, isReady]);
+
+  if (!isReady) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#0D0F1A', justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#6366F1" />
+      </View>
+    );
+  }
 
   return (
     // 2. WRAP THE ENTIRE RETURN IN SafeAreaProvider
