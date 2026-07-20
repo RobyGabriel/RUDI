@@ -23,8 +23,13 @@ export function connectWebSocket(url: string) {
     };
 
     socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      useRobotStore.getState().setLastMessage(data);
+      try {
+        const data = JSON.parse(event.data);
+        useRobotStore.getState().setLastMessage(data);
+      } catch (e) {
+        // Ignorăm silențios mesajele non-JSON (ex: mesajele brute destinate STM32-ului)
+        console.log("Ignorat mesaj non-JSON de la websocket:", event.data);
+      }
     };
 
     socket.onerror = (err) => {

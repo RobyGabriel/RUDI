@@ -26,10 +26,15 @@ async function apiFetch(path: string, options: RequestInit = {}) {
     ...(options.headers || {}),
   };
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  let response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers,
+    });
+  } catch (networkError: any) {
+    throw new Error('Nu se poate conecta la server. Verificați conexiunea.');
+  }
 
   if (!response.ok) {
     let errorMessage = `HTTP error! status: ${response.status}`;
