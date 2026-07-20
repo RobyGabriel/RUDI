@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import List
 from sqlmodel import Session
@@ -6,9 +7,6 @@ from database import engine
 from models import CommandLog
 
 router = APIRouter()
-
-
-import json
 
 class ConnectionManager:
     def __init__(self):
@@ -22,12 +20,24 @@ class ConnectionManager:
         self.active_connections.remove(websocket)
 
     async def broadcast_json(self, message: dict):
+        dead = []
         for connection in self.active_connections:
-            await connection.send_json(message)
+            try:
+                await connection.send_json(message)
+            except Exception:
+                dead.append(connection)
+        for d in dead:
+            self.active_connections.remove(d)
             
     async def broadcast_text(self, text: str):
+        dead = []
         for connection in self.active_connections:
-            await connection.send_text(text)
+            try:
+                await connection.send_text(text)
+            except Exception:
+                dead.append(connection)
+        for d in dead:
+            self.active_connections.remove(d)
 
 
 manager = ConnectionManager()
@@ -61,15 +71,28 @@ async def websocket_endpoint(websocket: WebSocket):
                 # Este JSON valid venit de la Aplicație
                 msg_type = data.get("type")
                 
-                # Traducem pentru STM32 și facem broadcast text
-                if msg_type == "call_robot":
-                    await manager.broadcast_text("MOT")
-                elif msg_type == "start_delivery":
-                    await manager.broadcast_text("DEMO")
-                elif msg_type == "emergency_stop":
-                    await manager.broadcast_text("X")
-                elif msg_type == "request_status":
-                    await manager.broadcast_text("S")
+                # Traducem pentru ESP32 (via Serial) și facem broadcast text
+                # Mapare completă conform codului C++ al ESP32:
+                ESP32_MAP = {
+                    "emergency_stop":   "X",  # stopMotors()
+                    "test_motors":      "T",  # runTest() — ambele motoare
+                    "motor1_diag":      "1",  # runMotor1Diagnostic()
+                    "motor2_diag":      "2",  # runMotor2Diagnostic()
+                    "motor1_forward":   "F",  # runMotorOutputMeasurement(1, true)
+                    "motor1_backward":  "B",  # runMotorOutputMeasurement(1, false)
+                    "motor2_forward":   "3",  # runMotorOutputMeasurement(2, true)
+                    "motor2_backward":  "4",  # runMotorOutputMeasurement(2, false)
+                    "motor1_reverse":   "R",  # runMotor1ReverseTest()
+                    "dir1_low":         "L",  # DIR1 = LOW
+                    "dir1_high":        "H",  # DIR1 = HIGH
+                    "call_robot":       "T",  # Test standard la chemare robot
+                    "start_delivery":   "T",  # Test standard la livrare
+                    "request_status":   "S",  # Status (dacă va fi implementat)
+                }
+                
+                serial_cmd = ESP32_MAP.get(msg_type)
+                if serial_cmd:
+                    await manager.broadcast_text(serial_cmd)
                     
                 # Broadcast JSON pentru sincronizarea tabletelor (App -> App)
                 save_log(data)

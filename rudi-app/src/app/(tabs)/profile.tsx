@@ -50,9 +50,15 @@ export default function ProfileScreen() {
 
       {/* Administrare (doar pentru admini) */}
       {currentUser?.role === 'admin' && (
-        <TouchableOpacity style={styles.adminButton} onPress={() => router.push('/admin/users' as any)}>
-          <Text style={styles.adminButtonText}>⚙️  Gestiune Angajați</Text>
-        </TouchableOpacity>
+        <>
+          <TouchableOpacity style={styles.adminButton} onPress={() => router.push('/admin/users' as any)}>
+            <Text style={styles.adminButtonText}>⚙️ Administrare Angajați</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.adminButtonAlt} onPress={() => router.push('/admin/firmware' as any)}>
+            <Text style={styles.adminButtonAltText}>🛜 Sistem & OTA Firmware</Text>
+          </TouchableOpacity>
+        </>
       )}
 
       {/* Delogare */}
@@ -88,7 +94,23 @@ const styles = StyleSheet.create({
   badge: { marginTop: 8, backgroundColor: 'rgba(99,102,241,0.15)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 4 },
   badgeText: { color: '#818CF8', fontSize: 13, fontWeight: '600' },
   adminButton: { backgroundColor: 'rgba(99,102,241,0.15)', borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 16, borderWidth: 1, borderColor: 'rgba(99,102,241,0.4)' },
-  adminButtonText: { color: '#818CF8', fontSize: 15, fontWeight: '700' },
+  adminButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  adminButtonAlt: {
+    backgroundColor: '#334155',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  adminButtonAltText: {
+    color: '#F8FAFC',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
   logoutButton: { backgroundColor: 'rgba(239,68,68,0.1)', borderRadius: 14, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#EF4444' },
   logoutText: { color: '#EF4444', fontSize: 15, fontWeight: '700' },
 });

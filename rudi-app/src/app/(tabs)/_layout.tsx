@@ -62,7 +62,16 @@ export default function TabLayout() {
         }}
       />
 
-      {/* 4. Tab Setări / Profil */}
+      {/* 4. Tab Control Robot */}
+      <Tabs.Screen
+        name="control"
+        options={{
+          title: 'Control',
+          tabBarIcon: ({ focused }) => <TabIcon icon="🎮" focused={focused} />,
+        }}
+      />
+
+      {/* 5. Tab Setări / Profil */}
       <Tabs.Screen
         name="profile"
         options={{

@@ -14,6 +14,9 @@ export type RobotPose = {
   y: number; // in meters
   heading: number; // in radians
   is_moving?: boolean;
+  battery?: number; // percentage 0-100
+  last_updated?: string; // ISO date string
+  last_command_ack?: string; // e.g. 'call_robot'
 };
 
 // Types matching your Python backend
@@ -33,11 +36,21 @@ export type Obstacle = {
   detected_at: string;
 };
 
+// Pregătire pentru senzori avansați pe viitor
+export type SensorData = {
+  id: string;
+  type: 'ultrasonic' | 'lidar' | 'ir' | 'camera';
+  distance: number;
+  confidence: number;
+  timestamp: string;
+};
+
 type MapStore = {
   mapData: MapData | null;
   robotPose: RobotPose;
   stations: Station[];
   obstacles: Obstacle[];
+  sensorReadings: SensorData[];
   
   setMapData: (data: MapData) => void;
   updateRobotPose: (pose: Partial<RobotPose>) => void;
@@ -45,12 +58,12 @@ type MapStore = {
   loadMockMap: () => void;
 };
 
-// --- Store ---
 export const useMapStore = create<MapStore>((set) => ({
   mapData: null,
   robotPose: { x: 0, y: 0, heading: 0 },
   stations: [],
   obstacles: [],
+  sensorReadings: [],
 
   setMapData: (data) => set({ mapData: data }),
   

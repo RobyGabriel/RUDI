@@ -48,4 +48,5 @@ class RobotStatus(SQLModel, table=True):
     x: Optional[float] = None        # ← nou: poziția curentă X
     y: Optional[float] = None        # ← nou: poziția curentă Y
     heading: Optional[float] = None
+    last_command_ack: Optional[str] = None # confirmarea ultimei comenzi (ex: 'call_robot')
     last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

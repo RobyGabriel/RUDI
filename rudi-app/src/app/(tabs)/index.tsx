@@ -6,10 +6,11 @@
 // ============================================================
 
 import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { connectWebSocket, disconnectWebSocket, sendCommand } from '../../services/websocket';
 import { useRobotStore } from '../../store/useRobotStore';
+import { useMapStore } from '../../store/useMapStore';
 import { apiFetch } from '../../lib/api';
 
 // Configurația vizuală pentru fiecare stare a robotului
@@ -55,39 +56,33 @@ export default function HomeScreen() {
   const router = useRouter();
 
   // Citim datele din Zustand
-  const connectionStatus = useRobotStore((s) => s.connectionStatus);
-  const robotStatus = useRobotStore((s) => s.robotStatus);
+  const { robotStatus: status, currentUser, connectionStatus, callRobot, markArrived, confirmArrivalAtSender } = useRobotStore();
+  const { robotPose } = useMapStore();
   const currentDelivery = useRobotStore((s) => s.currentDelivery);
-  const currentUser = useRobotStore((s) => s.currentUser);
-  const callRobot = useRobotStore((s) => s.callRobot);
-  const confirmArrivalAtSender = useRobotStore((s) => s.confirmArrivalAtSender);
-  const markArrived = useRobotStore((s) => s.markArrived);
+  const isCallConfirmed = robotPose?.last_command_ack === 'call_robot';
+  const isDeliveryConfirmed = robotPose?.last_command_ack === 'start_delivery';
 
-  // Conexiunea WebSocket (neatinsă)
+  // Conexiunea WebSocket
   useEffect(() => {
     connectWebSocket(process.env.EXPO_PUBLIC_WS_URL!);
     return () => disconnectWebSocket();
   }, []);
 
-  const statusConfig = STATUS_CONFIG[robotStatus] ?? STATUS_CONFIG.idle;
+  const statusConfig = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.idle;
   const isSender = currentDelivery?.from.id === currentUser?.id;
   const isRecipient = currentDelivery?.to?.id === currentUser?.id;
 
   // Handler Chemare Robot (Pasul 1)
   const handleCallRobot = async () => {
     if (!currentUser) return;
-    // Trimitem prin WebSocket
     sendCommand({ type: 'call_robot', sender_id: currentUser.id, sender: currentUser, status: 'coming_to_sender' });
-    // Schimbăm starea în store local
     callRobot(currentUser);
 
-    // Pornim motorul robotului (pentru test)
     try {
       await apiFetch('/robot/command', {
         method: 'POST',
         body: JSON.stringify({ action: 'start', speed: 50 }),
       });
-      console.log('Comandă START trimisă cu succes');
     } catch (e) {
       console.error("Eroare la pornirea motorului:", e);
     }
@@ -98,13 +93,11 @@ export default function HomeScreen() {
     sendCommand({ type: 'robot_arrived_sender', status: 'arrived_at_sender' });
     confirmArrivalAtSender();
 
-    // Oprim motorul robotului
     try {
       await apiFetch('/robot/command', {
         method: 'POST',
         body: JSON.stringify({ action: 'stop' }),
       });
-      console.log('Comandă STOP trimisă cu succes');
     } catch (e) {
       console.error("Eroare la oprirea motorului:", e);
     }
@@ -114,6 +107,26 @@ export default function HomeScreen() {
   const handleMarkArrived = () => {
     sendCommand({ type: 'robot_arrived_recipient', status: 'arrived' });
     markArrived();
+  };
+
+  // Handler Oprire de Urgență
+  const [isEmergencyStopped, setIsEmergencyStopped] = useState(false);
+
+  const handleEmergencyStop = async () => {
+    setIsEmergencyStopped(true);
+    sendCommand({ type: 'emergency_stop', status: 'idle' });
+    try {
+      await apiFetch('/robot/command', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'stop' }),
+      });
+    } catch (e) {
+      console.error("Eroare la oprirea motorului:", e);
+    }
+    
+    setTimeout(() => {
+      setIsEmergencyStopped(false);
+    }, 3000);
   };
 
   return (
@@ -140,7 +153,6 @@ export default function HomeScreen() {
         <Text style={[styles.statusLabel, { color: statusConfig.color }]}>{statusConfig.label}</Text>
         <Text style={styles.statusDescription}>{statusConfig.description}</Text>
 
-        {/* Detalii cursă activă */}
         {currentDelivery && (
           <View style={styles.deliveryInfo}>
             <Text style={styles.deliveryText}>
@@ -155,10 +167,21 @@ export default function HomeScreen() {
         )}
       </View>
 
-      {/* INTERFAȚĂ DINAMICĂ ÎN FUNCȚIE DE STATUS ȘI ROL */}
+      {/* Buton de Oprire Urgență */}
+      <TouchableOpacity 
+        style={[styles.emergencyButton, isEmergencyStopped && styles.emergencyButtonActive]} 
+        onPress={handleEmergencyStop} 
+        activeOpacity={0.8}
+        disabled={isEmergencyStopped}
+      >
+        <Text style={styles.emergencyIcon}>{isEmergencyStopped ? '⚠️' : '🛑'}</Text>
+        <Text style={styles.emergencyText}>
+          {isEmergencyStopped ? 'OPRIRE TRIMISĂ...' : 'OPRIRE DE URGENȚĂ'}
+        </Text>
+      </TouchableOpacity>
 
       {/* 1. Robotul este LIBER */}
-      {robotStatus === 'idle' && (
+      {status === 'idle' && (
         <TouchableOpacity style={styles.callButton} onPress={handleCallRobot} activeOpacity={0.8}>
           <Text style={styles.callButtonIcon}>🔔</Text>
           <Text style={styles.callButtonText}>Cheamă robotul</Text>
@@ -166,23 +189,24 @@ export default function HomeScreen() {
       )}
 
       {/* 2. Robotul VINE spre expeditor */}
-      {robotStatus === 'coming_to_sender' && (
-        isSender ? (
-          <TouchableOpacity style={styles.confirmSenderButton} onPress={handleConfirmArrival} activeOpacity={0.8}>
-            <Text style={styles.callButtonIcon}>📥</Text>
-            <Text style={styles.callButtonText}>Robotul a sosit (Încarcă foi)</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.infoCard}>
-            <Text style={styles.infoCardText}>
-              Robotul se deplasează spre {currentDelivery?.from.name} ({currentDelivery?.from.office}).
-            </Text>
-          </View>
-        )
+      {status === 'coming_to_sender' && currentUser && (
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Se deplasează spre tine</Text>
+          <Text style={styles.ackText}>
+            {isCallConfirmed ? '✅ Comandă confirmată de ESP32' : '⏳ Comandă trimisă. Se așteaptă confirmarea...'}
+          </Text>
+          <Text style={styles.statusDescription}>Robotul se îndreaptă către stația ta. Te rugăm să aștepți.</Text>
+          {isSender && (
+            <TouchableOpacity style={styles.confirmSenderButton} onPress={handleConfirmArrival} activeOpacity={0.8}>
+              <Text style={styles.callButtonIcon}>📥</Text>
+              <Text style={styles.callButtonText}>Robotul a sosit (Încarcă foi)</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       )}
 
-      {/* 3. Robotul A SOSIT la expeditor (așteaptă alegerea destinatarului) */}
-      {robotStatus === 'arrived_at_sender' && (
+      {/* 3. Robotul A SOSIT la expeditor */}
+      {status === 'arrived_at_sender' && (
         isSender ? (
           <TouchableOpacity style={styles.callButton} onPress={() => router.push('/send')} activeOpacity={0.8}>
             <Text style={styles.callButtonIcon}>🚀</Text>
@@ -190,31 +214,31 @@ export default function HomeScreen() {
           </TouchableOpacity>
         ) : (
           <View style={styles.infoCard}>
-            <Text style={styles.infoCardText}>
-              Robotul este în curs de încărcare la {currentDelivery?.from.name}.
-            </Text>
+            <Text style={styles.infoCardText}>Robotul este în curs de încărcare la {currentDelivery?.from.name}.</Text>
           </View>
         )
       )}
 
-      {/* 4. Robotul este pe drum (IN TRANSIT) spre destinatar */}
-      {robotStatus === 'in_transit' && (
-        isRecipient ? (
-          <TouchableOpacity style={styles.confirmSenderButton} onPress={handleMarkArrived} activeOpacity={0.8}>
-            <Text style={styles.callButtonIcon}>📦</Text>
-            <Text style={styles.callButtonText}>Robotul a sosit la mine</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.infoCard}>
-            <Text style={styles.infoCardText}>
-              Robotul transportă foi către {currentDelivery?.to?.name} ({currentDelivery?.to?.office}).
-            </Text>
-          </View>
-        )
+      {/* 4. Robotul LIVREAZĂ (in_transit) — feedback ACK pentru expeditor */}
+      {status === 'in_transit' && !isRecipient && (
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Livrare în curs</Text>
+          <Text style={styles.ackText}>
+            {isDeliveryConfirmed ? '✅ Comandă confirmată de ESP32' : '⏳ Comandă trimisă. Se așteaptă confirmarea...'}
+          </Text>
+          <Text style={styles.statusDescription}>Robotul se află în drum spre destinație.</Text>
+        </View>
       )}
 
-      {/* 5. Robotul a sosit la destinatar (ARRIVED) */}
-      {robotStatus === 'arrived' && (
+      {/* Butonul de confirmare pentru DESTINATAR — apare când e in_transit */}
+      {status === 'in_transit' && isRecipient && (
+        <TouchableOpacity style={styles.confirmSenderButton} onPress={handleMarkArrived} activeOpacity={0.8}>
+          <Text style={styles.callButtonIcon}>📦</Text>
+          <Text style={styles.callButtonText}>Robotul a sosit la mine</Text>
+        </TouchableOpacity>
+      )}
+
+      {status === 'arrived' && (
         isRecipient ? (
           <TouchableOpacity style={styles.confirmRecipientButton} onPress={() => router.push('/confirm')} activeOpacity={0.8}>
             <Text style={styles.callButtonIcon}>✅</Text>
@@ -222,9 +246,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
         ) : (
           <View style={styles.infoCard}>
-            <Text style={styles.infoCardText}>
-              Se așteaptă confirmarea de primire de la {currentDelivery?.to?.name}.
-            </Text>
+            <Text style={styles.infoCardText}>Se așteaptă confirmarea de primire de la {currentDelivery?.to?.name}.</Text>
           </View>
         )
       )}
@@ -236,31 +258,32 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0D0F1A' },
   content: { padding: 24, paddingTop: 60, paddingBottom: 40 },
-
   header: { marginBottom: 24 },
   greeting: { fontSize: 16, color: '#64748B' },
   userName: { fontSize: 28, fontWeight: '800', color: '#F8FAFC', marginTop: 2 },
   userOffice: { fontSize: 14, color: '#6366F1', marginTop: 4, fontWeight: '600' },
-
   wsCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#161929', borderRadius: 12, padding: 12, borderWidth: 1, marginBottom: 20, gap: 8 },
   wsIcon: { fontSize: 14 },
   wsText: { fontSize: 13, color: '#94A3B8' },
-
   statusCard: { borderRadius: 20, padding: 28, alignItems: 'center', borderWidth: 1, marginBottom: 24 },
   statusIcon: { fontSize: 56, marginBottom: 12 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16, color: '#FFF' },
+  emergencyButton: { backgroundColor: '#DC2626', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, borderRadius: 16, marginBottom: 24 },
+  emergencyButtonActive: { backgroundColor: '#7F1D1D' },
+  emergencyIcon: { fontSize: 24, marginRight: 12 },
+  emergencyText: { color: '#FFF', fontSize: 18, fontWeight: '800' },
   statusLabel: { fontSize: 22, fontWeight: '800', marginBottom: 8 },
   statusDescription: { fontSize: 13, color: '#94A3B8', textAlign: 'center', lineHeight: 18 },
-
   deliveryInfo: { marginTop: 16, backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: 14, width: '100%', gap: 6 },
   deliveryText: { fontSize: 13, color: '#94A3B8' },
   deliveryName: { color: '#F8FAFC', fontWeight: '700' },
-
   callButton: { backgroundColor: '#6366F1', borderRadius: 16, padding: 18, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 10 },
   confirmSenderButton: { backgroundColor: '#F59E0B', borderRadius: 16, padding: 18, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 10 },
   confirmRecipientButton: { backgroundColor: '#22C55E', borderRadius: 16, padding: 18, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 10 },
   callButtonText: { fontSize: 17, fontWeight: '700', color: '#fff' },
   callButtonIcon: { fontSize: 20 },
-
   infoCard: { backgroundColor: '#161929', borderRadius: 16, padding: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
   infoCardText: { fontSize: 14, color: '#94A3B8', textAlign: 'center', lineHeight: 20 },
+  ackText: { fontSize: 14, fontWeight: '600', color: '#818CF8', marginBottom: 12 },
+  card: { backgroundColor: '#1E2235', borderRadius: 20, padding: 24, marginBottom: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
 });

@@ -14,7 +14,7 @@ export type User = {
   role: UserRole;
 };
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://dramatic-basically-mortified.ngrok-free.dev';
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000';
 const API_KEY = process.env.EXPO_PUBLIC_API_KEY || 'rudi-secret-key-2026';
 
 // Helper pentru request-uri HTTP
