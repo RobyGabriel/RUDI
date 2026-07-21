@@ -73,34 +73,16 @@ export default function HomeScreen() {
   const isRecipient = currentDelivery?.to?.id === currentUser?.id;
 
   // Handler Chemare Robot (Pasul 1)
-  const handleCallRobot = async () => {
+  const handleCallRobot = () => {
     if (!currentUser) return;
     sendCommand({ type: 'call_robot', sender_id: currentUser.id, sender: currentUser, status: 'coming_to_sender' });
     callRobot(currentUser);
-
-    try {
-      await apiFetch('/robot/command', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'start', speed: 50 }),
-      });
-    } catch (e) {
-      console.error("Eroare la pornirea motorului:", e);
-    }
   };
 
   // Handler Confirmare Sosire la Mine (Pasul 2)
-  const handleConfirmArrival = async () => {
+  const handleConfirmArrival = () => {
     sendCommand({ type: 'robot_arrived_sender', status: 'arrived_at_sender' });
     confirmArrivalAtSender();
-
-    try {
-      await apiFetch('/robot/command', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'stop' }),
-      });
-    } catch (e) {
-      console.error("Eroare la oprirea motorului:", e);
-    }
   };
 
   // Handler Confirmare Sosire la Destinatar (Pasul 4)

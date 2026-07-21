@@ -1,10 +1,12 @@
 import json
+import asyncio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import List
 from sqlmodel import Session
 
 from database import engine
 from models import CommandLog
+from esp32_client import send_to_esp32
 
 router = APIRouter()
 
@@ -73,46 +75,40 @@ async def websocket_endpoint(websocket: WebSocket):
                 
                 # Traducem pentru ESP32 (via Serial) și facem broadcast text
                 # Mapare completă conform codului C++ al ESP32:
+                # Mapare completă tip WS → caracter serial ESP32
+                # conform codului C++ din rudi-sim-obstacol/esp32-bridge
                 ESP32_MAP = {
-                    "emergency_stop":   "X",  # stopMotors()
-                    "test_motors":      "T",  # runTest() — ambele motoare
-                    "motor1_diag":      "1",  # runMotor1Diagnostic()
-                    "motor2_diag":      "2",  # runMotor2Diagnostic()
-                    "motor1_forward":   "F",  # runMotorOutputMeasurement(1, true)
-                    "motor1_backward":  "B",  # runMotorOutputMeasurement(1, false)
-                    "motor2_forward":   "3",  # runMotorOutputMeasurement(2, true)
-                    "motor2_backward":  "4",  # runMotorOutputMeasurement(2, false)
-                    "motor1_reverse":   "R",  # runMotor1ReverseTest()
-                    "dir1_low":         "L",  # DIR1 = LOW
-                    "dir1_high":        "H",  # DIR1 = HIGH
-                    "call_robot":       "T",  # Test standard la chemare robot
-                    "start_delivery":   "T",  # Test standard la livrare
-                    "request_status":   "S",  # Status (dacă va fi implementat)
+                    "emergency_stop":   "X",    # stopMotors() imediat
+                    "call_robot":       "DEMO", # misiunea completă ghidată
+                    "start_delivery":   "DEMO", # misiunea completă ghidată
+                    "test_motors":      "T",    # runTest() — test scurt motoare
+                    "motor1_diag":      "1",    # runMotor1Diagnostic()
+                    "motor2_diag":      "2",    # runMotor2Diagnostic()
+                    "motor1_forward":   "F",    # Motor1 forward 99% / 10s
+                    "motor1_backward":  "B",    # Motor1 backward 99% / 10s
+                    "motor2_forward":   "3",    # Motor2 forward 99% / 10s
+                    "motor2_backward":  "4",    # Motor2 backward 99% / 10s
+                    "motor1_reverse":   "R",    # runMotor1ReverseTest()
+                    "dir1_low":         "L",    # DIR1 = LOW
+                    "dir1_high":        "H",    # DIR1 = HIGH
+                    "request_status":   "S",    # cerere status
                 }
-                
+
                 serial_cmd = ESP32_MAP.get(msg_type)
                 if serial_cmd:
-                    await manager.broadcast_text(serial_cmd)
-                    
+                    asyncio.create_task(send_to_esp32(serial_cmd))
+
+                # Salvăm în log doar evenimentele de livrare relevante
+                LOGGABLE_EVENTS = {'call_robot', 'start_delivery', 'delivery_confirmed', 'confirm_delivery'}
+                if msg_type in LOGGABLE_EVENTS:
+                    save_log(data)
+
                 # Broadcast JSON pentru sincronizarea tabletelor (App -> App)
-                save_log(data)
                 await manager.broadcast_json(data)
 
             except json.JSONDecodeError:
-                # Nu este JSON valid => Este mesaj brut de la STM32
-                stm_message = raw_text.strip()
-                
-                # Traducem mesajul STM32 în evenimente JSON pentru Aplicație
-                if stm_message.startswith("OBSTACOL"):
-                    await manager.broadcast_json({"type": "robot_obstacle"})
-                elif stm_message == "AM AJUNS LA DESTINATIE":
-                    await manager.broadcast_json({"type": "robot_arrived_recipient", "status": "arrived"})
-                elif stm_message.startswith("LIVRARE CONFIRMATA"):
-                    # Extragem UID dacă e nevoie, deocamdată doar trimitem evenimentul
-                    await manager.broadcast_json({"type": "rfid_verified"})
-                else:
-                    # Log fallback pentru mesaje STM32 necunoscute
-                    print(f"Mesaj STM32 necunoscut: {stm_message}")
+                # Daca din greseala vine un mesaj invalid, il ignoram
+                pass
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)

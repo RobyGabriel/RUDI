@@ -131,6 +131,32 @@ export const useRobotStore = create<RobotStore>((set) => ({
         currentDelivery: null,
       });
     }
+    // ---- Evenimente de la ESP32 (via puntea din backend) ----
+    else if (type === 'mission_started') {
+      // Robotul a confirmat că a pornit misiunea DEMO
+      // Starea rămâne coming_to_sender — deja setată la callRobot()
+      console.log('[ESP32] Misiune pornită confirmat de robot.');
+    }
+    else if (type === 'robot_obstacle') {
+      // Robotul a detectat un obstacol — îl logăm; UI-ul poate extinde asta
+      console.warn('[ESP32] Obstacol detectat:', (data as any).message);
+    }
+    else if (type === 'rfid_verified') {
+      // RFID scanat cu succes = livrare confirmată fizic de robot
+      set((state) => ({
+        robotStatus: 'idle',
+        currentDelivery: null,
+        notifications: state.notifications.map((n) =>
+          n.to.id === currentUser?.id && n.status === 'in_transit'
+            ? { ...n, status: 'delivered' as const }
+            : n
+        ),
+      }));
+    }
+    else if (type === 'emergency_stop_ack') {
+      // ESP32 a confirmat STOP DE URGENTA
+      console.log('[ESP32] Emergency stop confirmat de robot.');
+    }
   },
 
   // Utilizator

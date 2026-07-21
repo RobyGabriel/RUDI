@@ -23,9 +23,9 @@ class RobotStatusRead(BaseModel):
     battery: Optional[int] = None
     current_station: Optional[str] = None
     is_moving: bool
-    x: Optional[float] = None       
-    y: Optional[float] = None       
-    heading: Optional[float] = None 
+    x: Optional[float] = None
+    y: Optional[float] = None
+    heading: Optional[float] = None
     last_updated: str
 
 
@@ -38,6 +38,9 @@ def get_robot_status(session: Session = Depends(get_session)):
         battery=status.battery,
         current_station=status.current_station,
         is_moving=status.is_moving,
+        x=status.x,
+        y=status.y,
+        heading=status.heading,
         last_updated=status.last_updated.isoformat(),
     )
 
@@ -73,5 +76,8 @@ def update_robot_status(data: RobotStatusUpdate, session: Session = Depends(get_
         battery=status.battery,
         current_station=status.current_station,
         is_moving=status.is_moving,
+        x=status.x,
+        y=status.y,
+        heading=status.heading,
         last_updated=status.last_updated.isoformat(),
     )

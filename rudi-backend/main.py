@@ -10,8 +10,10 @@ from routers import commands, employees, websocket, logs, robot_status , map, no
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
+    from esp32_client import connect_to_esp32
+    esp_task = asyncio.create_task(connect_to_esp32())
     yield
-
+    esp_task.cancel()
 
 app = FastAPI(title="Rudi Robot API", lifespan=lifespan)
 
