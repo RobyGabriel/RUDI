@@ -68,3 +68,25 @@ Bun venit în workspace-ul proiectului RUDI! Acest document servește drept ghid
   - [ ] Montarea electronicii în șasiul printat 3D.
   - [ ] Test de calibrare generală (Aplicație -> Wi-Fi -> STM32 -> Motoare/Senzori).
   - [ ] Test complet de livrare a unui document din punctul A în punctul B.
+
+---
+
+### #5. ÎNVĂȚARE, TELECOMANDĂ & SCALARE DESTINATARI
+*Robotul învață traseele de la operator, iar destinatarii se administrează singuri, fără cod nou.*
+
+- [ ] **Aplicație tip telecomandă pe telefon (modul de antrenare)**
+  - [ ] Control manual al robotului (înainte/înapoi/viraje/stop) prin WebSocket, cu telemetrie live pe ecran (distanță HC-SR04, giroscop, stare motoare).
+  - [ ] Înregistrarea continuă a sesiunilor de pilotare: comenzile operatorului + citirile senzorilor, sincronizate pe timp (jurnal pe episod).
+- [ ] **Reprezentarea traseelor pe grafuri**
+  - [ ] Model de date: nodurile = stații/tag-uri RFID (birouri, puncte de predare), muchiile = segmente de traseu cu metadate (durată, viraje, praguri, zone cu risc de obstacole).
+  - [ ] Persistarea grafului în backend; robotul primește o rută ca listă de muchii de parcurs.
+- [ ] **Mod exemplu — învățare prin demonstrație**
+  - [ ] Operatorul duce robotul din A în B cu telecomanda, punând intenționat obstacole pe drum; senzorii sunt citiți constant, ca sistemul să vadă exact cum se evită fiecare obstacol.
+  - [ ] Salvarea demonstrațiilor ca episoade etichetate (traseu, momente de obstacol, manevre de evitare) — baza de învățare pentru evitarea autonomă.
+- [ ] **Scenariul "robot blocat" + buton "Cere ajutor"**
+  - [ ] În modul exemplu: robotul e înconjurat de obstacole fără ieșire; operatorul apasă "Cere ajutor" în aplicația de antrenare.
+  - [ ] La apăsare, robotul trimite automat notificare în aplicația UTILIZATORULUI (cea de livrare, NU cea de antrenare): "Robotul are nevoie de ajutor!" + ultima stație/poziție cunoscută.
+  - [ ] Pas următor: detectare automată a blocajului (toate direcțiile obturate mai mult de N secunde) → robotul cere ajutor singur, fără buton.
+- [ ] **Self-service destinatari (increase capacity, fără cod nou)**
+  - [ ] Onboarding destinatar nou 100% din aplicație: se lipește un tag RFID nou la stația lui + se înregistrează în aplicație (nume, birou) → apare automat ca nod nou în graf.
+  - [ ] Traseu nou configurabil oricând: destinatarul/administratorul leagă stația nouă de graful existent printr-o demonstrație scurtă cu telecomanda — zero modificări de firmware sau de cod la fiecare destinatar adăugat.

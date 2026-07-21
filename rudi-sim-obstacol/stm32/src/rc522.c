@@ -11,6 +11,7 @@
 #define REG_MODE 0x11
 #define REG_TX_CONTROL 0x14
 #define REG_TX_ASK 0x15
+#define REG_RF_CFG 0x26
 #define REG_T_MODE 0x2A
 #define REG_T_PRESCALER 0x2B
 #define REG_T_RELOAD_H 0x2C
@@ -72,6 +73,9 @@ void rc522_init(rc522_t *dev) {
   reg_write(dev, REG_T_RELOAD_H, 0);
   reg_write(dev, REG_TX_ASK, 0x40);  /* 100% ASK */
   reg_write(dev, REG_MODE, 0x3D);    /* CRC preset 0x6363 */
+  /* Castig maxim al receptorului: util pentru modulele RC522 cu antena mica. */
+  reg_write(dev, REG_RF_CFG,
+            (uint8_t)((reg_read(dev, REG_RF_CFG) & (uint8_t)~0x70U) | 0x70U));
 
   /* Antena pornita */
   if ((reg_read(dev, REG_TX_CONTROL) & 0x03) != 0x03) {
@@ -80,6 +84,10 @@ void rc522_init(rc522_t *dev) {
 }
 
 uint8_t rc522_version(rc522_t *dev) { return reg_read(dev, REG_VERSION); }
+uint8_t rc522_tx_control(rc522_t *dev) {
+  return reg_read(dev, REG_TX_CONTROL);
+}
+uint8_t rc522_rf_config(rc522_t *dev) { return reg_read(dev, REG_RF_CFG); }
 
 /* Trimite si primeste prin comanda Transceive.
    tx_bits: numarul de biti valizi din ultimul octet (0 = toti). */
@@ -124,7 +132,7 @@ static bool transceive(rc522_t *d, const uint8_t *tx, uint8_t tx_len,
   return true;
 }
 
-bool rc522_read_uid(rc522_t *dev, uint8_t uid[4]) {
+rc522_uid_result_t rc522_read_uid_diagnostic(rc522_t *dev, uint8_t uid[4]) {
   uint8_t buf[8];
   uint8_t len;
 
@@ -132,20 +140,24 @@ bool rc522_read_uid(rc522_t *dev, uint8_t uid[4]) {
   uint8_t reqa = PICC_REQA;
   len = sizeof(buf);
   if (!transceive(dev, &reqa, 1, 7, buf, &len) || len != 2) {
-    return false;
+    return RC522_UID_NO_ATQA;
   }
 
   /* Anticoliziune: primim UID (4 octeti) + BCC */
   uint8_t anticoll[2] = {PICC_ANTICOLL, 0x20};
   len = sizeof(buf);
   if (!transceive(dev, anticoll, 2, 0, buf, &len) || len != 5) {
-    return false;
+    return RC522_UID_ANTICOLLISION_FAILED;
   }
   if ((uint8_t)(buf[0] ^ buf[1] ^ buf[2] ^ buf[3]) != buf[4]) {
-    return false;  /* BCC gresit */
+    return RC522_UID_BCC_ERROR;
   }
   for (int i = 0; i < 4; i++) {
     uid[i] = buf[i];
   }
-  return true;
+  return RC522_UID_OK;
+}
+
+bool rc522_read_uid(rc522_t *dev, uint8_t uid[4]) {
+  return rc522_read_uid_diagnostic(dev, uid) == RC522_UID_OK;
 }

@@ -14,7 +14,10 @@
  *          ocolire cu giroscop -> sosire -> confirmare RFID
  *   GO   - la fel ca DEMO dar fara mesajele de ghidare pas cu pas
  *   MOT  - puls scurt ambele motoare inainte (verificare sens)
+ *   MOTR - puls scurt ambele motoare inapoi (verificare sens)
  *   S    - status senzori o singura data
+ *   GYRO - 10 mostre raw MPU6050, fara sa fie necesara miscarea placii
+ *   RFID - diagnostic RC522 si asteptare tag timp de 15 secunde
  *   X    - STOP DE URGENTA (functioneaza oricand)
  */
 
@@ -306,6 +309,20 @@ static bool mpu_read_gz_raw(int16_t *out) {
     return false;
   }
   *out = (int16_t)((b[0] << 8) | b[1]);
+  return true;
+}
+static bool mpu_read_motion_raw(int16_t *ax, int16_t *ay, int16_t *az,
+                                int16_t *gx, int16_t *gy, int16_t *gz) {
+  uint8_t b[14];
+  if (!mpu_read(0x3B, b, sizeof(b))) {
+    return false;
+  }
+  *ax = (int16_t)((b[0] << 8) | b[1]);
+  *ay = (int16_t)((b[2] << 8) | b[3]);
+  *az = (int16_t)((b[4] << 8) | b[5]);
+  *gx = (int16_t)((b[8] << 8) | b[9]);
+  *gy = (int16_t)((b[10] << 8) | b[11]);
+  *gz = (int16_t)((b[12] << 8) | b[13]);
   return true;
 }
 static float mpu_gz_dps(void) {
@@ -654,14 +671,96 @@ static void mission(bool guided) {
 }
 
 static void motor_sanity_pulse(void) {
-  print_both("MOT: ambele motoare INAINTE 40%% pentru 0.7 s — verifica "
+  print_both("MOT: ambele motoare INAINTE 40%% pentru 3.0 s — verifica "
              "sensul!\r\n");
   motor_set(1, 1, 400);
   motor_set(2, 1, 400);
-  wait_ms(700);
+  wait_ms(3000);
   motors_stop();
   print_both("MOT: stop. Daca vreun motor a mers invers, schimba "
              "M1_DIR_FORWARD/M2_DIR_FORWARD in main.c.\r\n");
+}
+
+static void motor_reverse_sanity_pulse(void) {
+  print_both("MOTR: ambele motoare INAPOI 40%% pentru 3.0 s — verifica "
+             "sensul!\r\n");
+  motor_set(1, 0, 400);
+  motor_set(2, 0, 400);
+  wait_ms(3000);
+  motors_stop();
+  print_both("MOTR: stop.\r\n");
+}
+
+static void gyro_diagnostic(void) {
+  uint8_t who = 0;
+  if (!mpu_read(0x75, &who, 1)) {
+    print_both("GYRO: eroare I2C, MPU6050 nu raspunde.\r\n");
+    return;
+  }
+
+  print_both("GYRO: WHO_AM_I=0x%02X, 10 mostre statice raw "
+             "(A=accelerometru, G=giroscop).\r\n",
+             who);
+  for (int i = 0; i < 10; i++) {
+    int16_t ax, ay, az, gx, gy, gz;
+    if (!mpu_read_motion_raw(&ax, &ay, &az, &gx, &gy, &gz)) {
+      print_both("GYRO[%02d]: eroare citire I2C\r\n", i + 1);
+      return;
+    }
+    float gz_corrected = ((float)gz - gyro_bias_z) / 131.0f;
+    print_both("GYRO[%02d] A=(%d,%d,%d) G=(%d,%d,%d) "
+               "GZ_CORR=%+.2f dps\r\n",
+               i + 1, ax, ay, az, gx, gy, gz, (double)gz_corrected);
+    if (!wait_ms(100)) {
+      return;
+    }
+  }
+  print_both("GYRO: I2C si citirea tuturor axelor sunt functionale; "
+             "testul dinamic necesita miscarea modulului.\r\n");
+}
+
+static void rfid_diagnostic(void) {
+  uint8_t version = rc522_version(&rfid);
+  uint8_t tx_control = rc522_tx_control(&rfid);
+  uint8_t rf_config = rc522_rf_config(&rfid);
+  unsigned long no_atqa = 0;
+  unsigned long anticoll_failed = 0;
+  unsigned long bcc_failed = 0;
+
+  print_both("RFID: VersionReg=0x%02X TxControl=0x%02X RFCfg=0x%02X "
+             "ANTENA=%s GAIN=%u\r\n",
+             version, tx_control, rf_config,
+             (tx_control & 0x03) == 0x03 ? "ON" : "OFF",
+             (unsigned)((rf_config >> 4) & 0x07));
+  print_both("RFID: apropie un tag 13.56 MHz ISO14443A timp de 15 s...\r\n");
+
+  uint32_t start = HAL_GetTick();
+  while (HAL_GetTick() - start < 15000U) {
+    uint8_t uid[4];
+    rc522_uid_result_t result = rc522_read_uid_diagnostic(&rfid, uid);
+    if (result == RC522_UID_OK) {
+      print_both("RFID: TAG OK dupa %lu ms, UID=%02X:%02X:%02X:%02X\r\n",
+                 (unsigned long)(HAL_GetTick() - start), uid[0], uid[1], uid[2],
+                 uid[3]);
+      return;
+    }
+    if (result == RC522_UID_NO_ATQA) {
+      no_atqa++;
+    } else if (result == RC522_UID_ANTICOLLISION_FAILED) {
+      anticoll_failed++;
+    } else {
+      bcc_failed++;
+    }
+    if (!wait_ms(50)) {
+      return;
+    }
+  }
+
+  print_both("RFID: niciun UID. REQA_fara_ATQA=%lu ANTICOLL_fail=%lu "
+             "BCC_fail=%lu\r\n",
+             no_atqa, anticoll_failed, bcc_failed);
+  print_both("RFID: foloseste card/tag 13.56 MHz ISO14443A; tagurile "
+             "125 kHz nu sunt compatibile cu RC522.\r\n");
 }
 
 static void status_once(void) {
@@ -696,7 +795,7 @@ int main(void) {
   rfid.rst_pin = GPIO_PIN_4;
   rc522_init(&rfid);
   print_both("RC522: VersionReg=0x%02X\r\n", rc522_version(&rfid));
-  print_both("Comenzi: DEMO | GO | MOT | S | X\r\n");
+  print_both("Comenzi: DEMO | GO | MOT | MOTR | S | GYRO | RFID | X\r\n");
 
   for (;;) {
     const char *cmd = poll_command();
@@ -707,15 +806,22 @@ int main(void) {
         mission(false);
       } else if (strcmp(cmd, "MOT") == 0) {
         motor_sanity_pulse();
+      } else if (strcmp(cmd, "MOTR") == 0) {
+        motor_reverse_sanity_pulse();
       } else if (strcmp(cmd, "S") == 0) {
         status_once();
+      } else if (strcmp(cmd, "GYRO") == 0) {
+        gyro_diagnostic();
+      } else if (strcmp(cmd, "RFID") == 0) {
+        rfid_diagnostic();
       } else if (strcmp(cmd, "X") == 0 || strcmp(cmd, "STOP") == 0) {
         motors_stop();
         print_both("STOP (nimic activ)\r\n");
       } else {
         print_both("Comanda necunoscuta: '%s'\r\n", cmd);
       }
-      print_both("Gata de comanda: DEMO | GO | MOT | S | X\r\n");
+      print_both(
+          "Gata de comanda: DEMO | GO | MOT | MOTR | S | GYRO | RFID | X\r\n");
     }
     HAL_Delay(10);
   }

@@ -205,6 +205,31 @@ M1/M2. GND-ul sursei, al driverului și al plăcii = masă comună.
 | TRIG | D2 | PJ1 | |
 | ECHO | D5 | PC8 | **prin divizor 1k/2k** (ECHO e 5 V!) |
 
+#### Construirea traductorului HC-SR04 (divizorul pentru ECHO)
+
+ECHO iese la ~5 V, iar pinul STM32 vrea 3,3 V — divizorul e obligatoriu și se
+face din două rezistoare (1 kΩ și 2 kΩ), lipite sau pe breadboard:
+
+```text
+HC-SR04 ECHO ---- rezistor 1 kΩ ----+---- D5 (PC8)
+                                    |
+                                 rezistor 2 kΩ
+                                    |
+                                   GND
+```
+
+Pași:
+1. Un capăt al rezistorului de 1 kΩ la pinul ECHO al senzorului.
+2. Celălalt capăt al lui 1 kΩ se leagă împreună cu un capăt al lui 2 kΩ —
+   acest nod comun merge la **D5**.
+3. Capătul liber al lui 2 kΩ la **GND**.
+4. Verificare cu multimetrul: nodul divizorului în repaus = **~0 V**; în timpul
+   unei măsurători vârfurile ajung la ~3,3 V (prea scurte pentru multimetru,
+   dar 0 V în repaus + citiri `DIST` valide confirmă montajul).
+
+TRIG nu are nevoie de nimic — semnalul pleacă de la STM32 (3,3 V) și senzorul
+îl acceptă direct.
+
 ### MPU6050 / GY-521 (VCC la 3V3, AD0 liber)
 | GY-521 | Pin Arduino | Pin STM32 |
 |---|---|---|
@@ -226,6 +251,59 @@ M1/M2. GND-ul sursei, al driverului și al plăcii = masă comună.
 | GPIO4 (TX) | D0 (PC7, RX) |
 | GPIO5 (RX) | D1 (PC6, TX) |
 | GND | GND |
+
+### ESP8266 ↔ STM32 (alternativa folosită de puntea din `esp8266-bridge/`)
+| ESP8266 (NodeMCU) | STM32 |
+|---|---|
+| TX / GPIO1 | D0 (PC7, RX) |
+| RX / GPIO3 | D1 (PC6, TX) |
+| GND | GND |
+
+Note pentru ESP8266: GPIO1/GPIO3 sunt și UART-ul lui de programare — la flash
+prin USB se scot firele spre STM32, iar în timpul testului nu ține niciun
+monitor serial/adaptor pe acești pini. ESP8266 se alimentează de la placa lui
+(USB sau 5V/VIN), niciodată 5 V direct în GPIO.
+
+## Testarea cablării (10 minute care scutesc ore)
+
+Regula de aur, plătită scump pe bancul nostru: **90% din "nu merge nimic"
+înseamnă un fir de GND sau de alimentare lipsă** — de trei ori la rând asta a
+fost cauza, nu codul.
+
+### Pasul 0 — vizual, fără alimentare
+- Toate GND-urile (sursă motoare, driver, STM32, ESP) legate împreună?
+- 3V3 doar la MPU6050 și RC522; 5 V doar la HC-SR04 și logica driverului.
+- ECHO trece prin divizor? Condensatoarele 100 nF pe motoare?
+
+### Pasul 1 — multimetru, cu alimentare pornită, fără să miști nimic
+| Punct de măsură (negru pe GND) | Aștepți |
+|---|---|
+| pinul 3V3 al plăcii | ~3,3 V |
+| VCC pe HC-SR04 | ~5 V |
+| VCC pe GY-521 și RC522 | ~3,3 V |
+| nodul divizorului ECHO, în repaus | ~0 V |
+
+### Pasul 2 — puntea serială (loopback), înainte să acuzi robotul
+Scoate cele două fire TX/RX de la STM32 și leagă-le cap la cap (sau un jumper
+direct între pinii TX-RX ai ESP-ului). Tot ce trimiți prin WebSocket/serial
+trebuie să se întoarcă ecou. Fără ecou = problema e în punte/fire/adaptor, nu
+în robot. (Adaptorul nostru CP2102 nou-nouț era mort din fabrică — există și
+asta.)
+
+### Pasul 3 — senzorii, unul câte unul, din comenzi
+- `S` → DIST plauzibil (nu `---`), MPU=OK, RC522 cu versiune diferită de
+  0x00/0xFF (clonele raportează 0x82/0x12/0xB2 — sunt OK dacă citesc taguri).
+- `GYRO` → valorile se mișcă atunci când rotești șasiul.
+- `RFID` → apropie tagul: UID stabil la fiecare citire.
+- `DIST=---` permanent → fir TRIG/ECHO desprins, divizor greșit sau senzor
+  mort. DIST arată fundalul, nu obiectul → obiect prea mic sau oblic (conul
+  senzorului are ~15°; folosește o cutie lată, perpendiculară).
+
+### Pasul 4 — motoarele, OBLIGATORIU cu șenilele ridicate
+`MOT` (înainte) apoi `MOTR` (înapoi): ambele motoare, ambele sensuri. Un motor
+care merge doar într-un sens = canal de driver ars — procedura completă de
+diagnostic cu multimetrul e în README-ul din branch-ul `test-motoare-esp32`
+(studiul de caz cu Q1/Q2 arși de EMI).
 
 ## Build & flash
 
@@ -254,6 +332,15 @@ cd esp32-bridge
 pio run -t upload      # placa conectată pe USB; port auto-detectat
 ```
 
+### ESP8266 (folderul `esp8266-bridge/`, board NodeMCU)
+```powershell
+cd esp8266-bridge
+pio run -t upload      # NodeMCU pe USB; scoate firele spre STM32 la flash!
+```
+Aceeași rețea și același protocol ca puntea ESP32: AP **`RUDI-ROBOT`** /
+**`rudi1234`**, verificare rapidă la `http://192.168.4.1/health`, comenzi pe
+`ws://192.168.4.1:81`.
+
 ## Protocol serial (115200, text + Enter)
 
 Te conectezi la **portul serial USB al ESP-ului** (sau la VCP-ul ST-Link).
@@ -264,7 +351,10 @@ Comenzi:
 | `DEMO` | misiunea ghidată completă (mesaje pas cu pas pentru operator) |
 | `GO` | aceeași misiune, mesaje minime |
 | `MOT` | puls scurt ambele motoare înainte — verificarea sensurilor |
+| `MOTR` | puls scurt ambele motoare înapoi |
 | `S` | o citire de status: distanță, giroscop, RC522, tag |
+| `GYRO` | diagnostic MPU6050: mostre brute consecutive, fără mișcare necesară |
+| `RFID` | diagnostic RC522 + așteptare tag |
 | `X` | **STOP DE URGENȚĂ** — oricând, inclusiv în timpul misiunii |
 
 Robotul răspunde cu linii text (exemple):
