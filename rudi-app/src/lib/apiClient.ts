@@ -1,5 +1,5 @@
 // ============================================================
-// src/lib/supabase.ts
+// src/lib/apiClient.ts
 // ------------------------------------------------------------
 // Client API — face apeluri HTTP către backend-ul Python.
 // ============================================================
@@ -14,7 +14,7 @@ export type User = {
   role: UserRole;
 };
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.0.24:8000';
 const API_KEY = process.env.EXPO_PUBLIC_API_KEY || 'rudi-secret-key-2026';
 
 // Helper pentru request-uri HTTP

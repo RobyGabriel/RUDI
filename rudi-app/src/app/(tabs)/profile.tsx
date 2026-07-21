@@ -4,7 +4,7 @@
 
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import { mockAuth } from '../../lib/supabase';
+import { mockAuth } from '../../lib/apiClient';
 import { useRobotStore } from '../../store/useRobotStore';
 
 export default function ProfileScreen() {

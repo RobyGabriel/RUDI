@@ -62,12 +62,13 @@ export default function TabLayout() {
         }}
       />
 
-      {/* 4. Tab Control Robot */}
+      {/* 4. Tab Control Robot (Doar pentru Admin) */}
       <Tabs.Screen
         name="control"
         options={{
           title: 'Control',
           tabBarIcon: ({ focused }) => <TabIcon icon="🎮" focused={focused} />,
+          href: currentUser?.role === 'admin' ? '/control' : null,
         }}
       />
 

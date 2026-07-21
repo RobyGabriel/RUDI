@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
-import { mockAuth } from '../lib/supabase';
+import { mockAuth } from '../lib/apiClient';
 import { useRobotStore } from '../store/useRobotStore';
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';

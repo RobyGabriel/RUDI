@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { mockEmployees, User } from '../lib/supabase';
+import { mockEmployees, User } from '../lib/apiClient';
 import { useRobotStore } from '../store/useRobotStore';
 import { sendCommand } from '../services/websocket';
 

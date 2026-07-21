@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { mockAuth } from '../lib/supabase';
+import { mockAuth } from '../lib/apiClient';
 import { useRobotStore } from '../store/useRobotStore';
 
 export default function LoginScreen() {

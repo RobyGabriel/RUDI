@@ -6,7 +6,7 @@
 // ============================================================
 
 import { create } from 'zustand';
-import { User } from '../lib/supabase';
+import { User } from '../lib/apiClient';
 
 // Tipuri posibile pentru conexiunea WebSocket
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
