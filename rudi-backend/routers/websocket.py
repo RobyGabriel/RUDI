@@ -102,7 +102,7 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            # Citim text brut pentru a nu crăpa la mesaje STM32
+            # Citim text brut pentru a nu crăpa la mesaje de la anumite terminale
             raw_text = await websocket.receive_text()
             print(f"Mesaj WS primit: {raw_text}")
             
@@ -120,38 +120,29 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 user_role = data.get("user_role", "employee")
                 
-                # Blocăm comenzile de control (în afară de status sau urgență) dacă robotul e ocupat și userul nu e admin
-                CONTROL_COMMANDS = {'call_robot', 'test_motors', 'motor1_forward', 'motor1_backward', 
-                                    'motor2_forward', 'motor2_backward', 'motor1_diag', 'motor2_diag', 'motor1_reverse'}
+                # Blocăm comenzile de control dacă robotul e ocupat și userul nu e admin
+                CONTROL_COMMANDS = {'call_robot', 'test_motors', 'start_delivery'}
                 
                 if msg_type in CONTROL_COMMANDS and current_delivery_status != 'idle':
                     if user_role != 'admin':
                         print(f"WS Blocked: {msg_type} respins. Robotul este ocupat (status: {current_delivery_status}) și userul nu este admin.")
-                        # Trimitem un eroare înapoi la utilizator ca să știe
                         await websocket.send_json({"type": "error", "message": "Robotul este ocupat. Doar adminii îl pot întrerupe."})
                         continue
-                
-                # Traducem pentru ESP32 (via Serial) și facem broadcast text
-                ESP32_MAP = {
-                    "emergency_stop":   "X",    # stopMotors() imediat
-                    "call_robot":       "DEMO", # misiunea completă ghidată
-                    "start_delivery":   "DEMO", # misiunea completă ghidată
-                    "test_motors":      "T",    # runTest() — test scurt motoare
-                    "motor1_diag":      "1",    # runMotor1Diagnostic()
-                    "motor2_diag":      "2",    # runMotor2Diagnostic()
-                    "motor1_forward":   "F",    # Motor1 forward 99% / 10s
-                    "motor1_backward":  "B",    # Motor1 backward 99% / 10s
-                    "motor2_forward":   "3",    # Motor2 forward 99% / 10s
-                    "motor2_backward":  "4",    # Motor2 backward 99% / 10s
-                    "motor1_reverse":   "R",    # runMotor1ReverseTest()
-                    "dir1_low":         "L",    # DIR1 = LOW
-                    "dir1_high":        "H",    # DIR1 = HIGH
-                    "request_status":   "S",    # cerere status
-                }
 
-                serial_cmd = ESP32_MAP.get(msg_type)
-                if serial_cmd:
-                    asyncio.create_task(send_to_esp32(serial_cmd))
+                # --- INTEGRARE CU ESP32 (HTTP) ---
+                if msg_type in ["call_robot", "start_delivery", "go_idle"]:
+                    import urllib.request
+                    import threading
+                    
+                    def trigger_esp():
+                        try:
+                            print(f"Trimit HTTP către ESP32 pentru comanda: {msg_type}")
+                            urllib.request.urlopen("http://192.168.0.19/led/toggle", timeout=2)
+                        except Exception as e:
+                            print("Eroare comunicare cu ESP32:", e)
+                    
+                    threading.Thread(target=trigger_esp).start()
+                # ---------------------------
 
                 # Actualizăm starea și istoricul (dacă e eveniment de livrare)
                 LOGGABLE_EVENTS = {'call_robot', 'robot_arrived_sender', 'start_delivery', 'robot_arrived_recipient', 'delivery_confirmed', 'confirm_delivery', 'emergency_stop'}
@@ -162,9 +153,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 await manager.broadcast_json(data)
 
             except json.JSONDecodeError:
-                # Daca din greseala vine un mesaj invalid, il ignoram
+                # Dacă mesajul nu e JSON, îl ignorăm
                 pass
-
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         print("Conexiune închisă")

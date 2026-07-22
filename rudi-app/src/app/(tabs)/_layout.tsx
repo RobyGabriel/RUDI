@@ -42,12 +42,13 @@ export default function TabLayout() {
         }}
       />
 
-      {/* 2. Tab Hartă — Aici controlăm tab-ul map.tsx */}
+      {/* 2. Tab Navigație (Admin Only) */}
       <Tabs.Screen
         name="map"
         options={{
-          title: 'Hartă',
+          title: 'Navigație',
           tabBarIcon: ({ focused }) => <TabIcon icon="🗺️" focused={focused} />,
+          href: currentUser?.role === 'admin' ? '/(tabs)/map' : null,
         }}
       />
 
