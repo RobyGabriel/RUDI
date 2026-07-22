@@ -17,6 +17,12 @@ class RobotStatusUpdate(BaseModel):
     x: Optional[float] = None        
     y: Optional[float] = None        
     heading: Optional[float] = None  
+    
+    delivery_status: Optional[str] = None
+    sender_id: Optional[str] = None
+    recipient_id: Optional[str] = None
+    sender_data: Optional[str] = None
+    recipient_data: Optional[str] = None
 
 
 class RobotStatusRead(BaseModel):
@@ -26,6 +32,13 @@ class RobotStatusRead(BaseModel):
     x: Optional[float] = None
     y: Optional[float] = None
     heading: Optional[float] = None
+    
+    delivery_status: str
+    sender_id: Optional[str] = None
+    recipient_id: Optional[str] = None
+    sender_data: Optional[str] = None
+    recipient_data: Optional[str] = None
+    
     last_updated: str
 
 
@@ -41,6 +54,11 @@ def get_robot_status(session: Session = Depends(get_session)):
         x=status.x,
         y=status.y,
         heading=status.heading,
+        delivery_status=status.delivery_status,
+        sender_id=status.sender_id,
+        recipient_id=status.recipient_id,
+        sender_data=status.sender_data,
+        recipient_data=status.recipient_data,
         last_updated=status.last_updated.isoformat(),
     )
 
@@ -64,6 +82,24 @@ def update_robot_status(data: RobotStatusUpdate, session: Session = Depends(get_
         status.y = data.y
     if data.heading is not None:
         status.heading = data.heading
+        
+    if data.delivery_status is not None:
+        status.delivery_status = data.delivery_status
+        # Reset delivery data if going idle
+        if data.delivery_status == 'idle':
+            status.sender_id = None
+            status.recipient_id = None
+            status.sender_data = None
+            status.recipient_data = None
+            
+    if data.sender_id is not None:
+        status.sender_id = data.sender_id
+    if data.recipient_id is not None:
+        status.recipient_id = data.recipient_id
+    if data.sender_data is not None:
+        status.sender_data = data.sender_data
+    if data.recipient_data is not None:
+        status.recipient_data = data.recipient_data
 
     from datetime import datetime, timezone
     status.last_updated = datetime.now(timezone.utc)
@@ -79,5 +115,10 @@ def update_robot_status(data: RobotStatusUpdate, session: Session = Depends(get_
         x=status.x,
         y=status.y,
         heading=status.heading,
+        delivery_status=status.delivery_status,
+        sender_id=status.sender_id,
+        recipient_id=status.recipient_id,
+        sender_data=status.sender_data,
+        recipient_data=status.recipient_data,
         last_updated=status.last_updated.isoformat(),
     )

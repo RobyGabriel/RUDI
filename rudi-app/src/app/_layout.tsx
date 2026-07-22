@@ -19,14 +19,28 @@ export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
+    let intervalId: ReturnType<typeof setInterval>;
+
     async function loadSession() {
       const user = await mockAuth.initAuth();
       if (user) {
         setCurrentUser(user);
+        await useRobotStore.getState().fetchActiveDelivery();
+        
+        // Verificăm statusul livrării în mod constant (la fiecare 5 secunde)
+        // pentru a ne asigura că aplicația e mereu sincronizată cu realitatea,
+        // chiar dacă se pierd mesaje WebSocket (ex: aplicația a fost în background)
+        intervalId = setInterval(() => {
+          useRobotStore.getState().fetchActiveDelivery();
+        }, 5000);
       }
       setIsReady(true);
     }
     loadSession();
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
   }, []);
 
   useEffect(() => {

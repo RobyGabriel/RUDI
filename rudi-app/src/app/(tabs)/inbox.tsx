@@ -16,8 +16,10 @@ export default function InboxScreen() {
   const notifications = useRobotStore((s) => s.notifications);
   const deleteNotification = useRobotStore((s) => s.deleteNotification);
 
-  // Filtrăm notificările care sunt adresate mie (utilizatorului curent)
-  const myNotifications = notifications.filter((n) => n.to.id === currentUser?.id);
+  // Filtrăm notificările care mă implică (sunt expeditor sau destinatar)
+  const myNotifications = notifications.filter(
+    (n) => n.to.id === currentUser?.id || n.from.id === currentUser?.id
+  );
 
   const handleNotificationPress = (notif: AppNotification) => {
     // Dacă pachetul e încă pe drum sau a sosit, mergem la confirmare
@@ -28,6 +30,7 @@ export default function InboxScreen() {
 
   const renderItem = ({ item }: { item: AppNotification }) => {
     const isActive = item.status === 'in_transit';
+    const isSender = currentUser?.id === item.from.id;
     
     // Formatăm ora (ex: 14:35)
     const timeStr = new Date(item.timestamp).toLocaleTimeString([], {
@@ -35,28 +38,42 @@ export default function InboxScreen() {
       minute: '2-digit',
     });
 
+    let titleText = '';
+    let bodyText = '';
+
+    if (isSender) {
+      if (isActive) {
+        titleText = 'Livrare în curs spre destinatar';
+        bodyText = `Robotul transportă pachetul tău către ${item.to.name} (${item.to.office}).`;
+      } else {
+        titleText = 'Livrare finalizată cu succes';
+        bodyText = `Angajatul ${item.to.name} a confirmat primirea pachetului trimis de tine.`;
+      }
+    } else {
+      if (isActive) {
+        titleText = 'Robotul vine spre tine';
+        bodyText = `Angajatul ${item.from.name} ți-a trimis documente de la ${item.from.office}.`;
+      } else {
+        titleText = 'Pachet primit cu succes';
+        bodyText = `Ai preluat foile trimise de ${item.from.name}.`;
+      }
+    }
+
     return (
       <TouchableOpacity
         style={[styles.card, isActive && styles.cardActive]}
-        onPress={isActive ? () => handleNotificationPress(item) : undefined}
-        activeOpacity={isActive ? 0.7 : 1}
+        onPress={isActive && !isSender ? () => handleNotificationPress(item) : undefined}
+        activeOpacity={isActive && !isSender ? 0.7 : 1}
       >
         <View style={styles.headerRow}>
           <Text style={styles.icon}>{isActive ? '🚀' : '📦'}</Text>
           <View style={styles.titleCol}>
-            <Text style={styles.title}>
-              {isActive ? 'Robotul vine spre tine' : 'Pachet primit cu succes'}
-            </Text>
+            <Text style={styles.title}>{titleText}</Text>
             <Text style={styles.time}>{timeStr}</Text>
           </View>
         </View>
 
-        <Text style={styles.body}>
-          {isActive
-            ? `Angajatul ${item.from.name} ți-a trimis documente de la ${item.from.office}.`
-            : `Ai preluat foile trimise de ${item.from.name}.`
-          }
-        </Text>
+        <Text style={styles.body}>{bodyText}</Text>
 
         <View style={styles.footerRow}>
           <View style={[styles.badge, isActive ? styles.badgeActive : styles.badgeDone]}>

@@ -49,4 +49,12 @@ class RobotStatus(SQLModel, table=True):
     y: Optional[float] = None        # ← nou: poziția curentă Y
     heading: Optional[float] = None
     last_command_ack: Optional[str] = None # confirmarea ultimei comenzi (ex: 'call_robot')
+    
+    # Active Delivery State
+    delivery_status: str = Field(default="idle") # 'idle', 'coming_to_sender', 'arrived_at_sender', 'in_transit', 'arrived'
+    sender_id: Optional[str] = None
+    recipient_id: Optional[str] = None
+    sender_data: Optional[str] = None    # JSON encoded sender info
+    recipient_data: Optional[str] = None # JSON encoded recipient info
+
     last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

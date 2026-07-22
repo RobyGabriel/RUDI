@@ -18,7 +18,7 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.0.24:8000';
 const API_KEY = process.env.EXPO_PUBLIC_API_KEY || 'rudi-secret-key-2026';
 
 // Helper pentru request-uri HTTP
-async function apiFetch(path: string, options: RequestInit = {}) {
+export async function apiFetch(path: string, options: RequestInit = {}) {
   const headers = {
     'Content-Type': 'application/json',
     'x-api-key': API_KEY,

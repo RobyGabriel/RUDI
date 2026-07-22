@@ -59,6 +59,10 @@ export default function ControlScreen() {
   }[robotStatus];
 
   const serverConnected = connectionStatus === 'connected';
+  const { currentUser, robotStatus: globalRobotStatus } = useRobotStore();
+  
+  // Dacă robotul este ocupat (o livrare e în curs) și userul NU este admin, blocăm ecranul de control.
+  const isLocked = globalRobotStatus !== 'idle' && currentUser?.role !== 'admin';
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -78,17 +82,27 @@ export default function ControlScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      
+        {isLocked && (
+          <View style={styles.lockedBanner}>
+            <Text style={styles.lockedIcon}>🔒</Text>
+            <View style={styles.lockedTextCol}>
+              <Text style={styles.lockedTitle}>Acces Restricționat</Text>
+              <Text style={styles.lockedSub}>Robotul execută o misiune activă. Doar administratorii pot prelua controlul manual în acest moment.</Text>
+            </View>
+          </View>
+        )}
 
         {/* Stop Urgență — primul și cel mai mare */}
         <TouchableOpacity
-          style={[styles.stopBtn, activeBtn === 'emergency_stop' && styles.stopBtnActive]}
+          style={[styles.stopBtn, activeBtn === 'emergency_stop' && styles.stopBtnActive, isLocked && styles.btnDisabled]}
           onPress={() => send('emergency_stop', 'Stop Urgență', 'X')}
           activeOpacity={0.8}
-          disabled={activeBtn === 'emergency_stop'}
+          disabled={activeBtn === 'emergency_stop' || isLocked}
         >
           <Text style={styles.stopIcon}>🛑</Text>
           <Text style={styles.stopLabel}>STOP URGENȚĂ</Text>
-          <Text style={styles.stopSub}>Trimite 'X' → stopMotors()</Text>
+          <Text style={styles.stopSub}>Trimite {'\'X\''} → stopMotors()</Text>
         </TouchableOpacity>
 
         {/* Test Complet */}
@@ -100,6 +114,7 @@ export default function ControlScreen() {
             sub="'T' → ambele motoare"
             color="#6366F1"
             active={activeBtn === 'test_motors'}
+            disabled={isLocked}
             onPress={() => send('test_motors', 'Test Motoare', 'T')}
           />
         </View>
@@ -113,6 +128,7 @@ export default function ControlScreen() {
             sub="'F' → 99%, 10s"
             color="#22C55E"
             active={activeBtn === 'motor1_forward'}
+            disabled={isLocked}
             onPress={() => send('motor1_forward', 'M1 Înainte', 'F')}
           />
           <CmdBtn
@@ -121,6 +137,7 @@ export default function ControlScreen() {
             sub="'B' → 99%, 10s"
             color="#F59E0B"
             active={activeBtn === 'motor1_backward'}
+            disabled={isLocked}
             onPress={() => send('motor1_backward', 'M1 Înapoi', 'B')}
           />
         </View>
@@ -131,6 +148,7 @@ export default function ControlScreen() {
             sub="'R' → 99%, 2s"
             color="#818CF8"
             active={activeBtn === 'motor1_reverse'}
+            disabled={isLocked}
             onPress={() => send('motor1_reverse', 'M1 Reverse', 'R')}
           />
           <CmdBtn
@@ -139,6 +157,7 @@ export default function ControlScreen() {
             sub="'1' → 45%, 3s fwd+bwd"
             color="#94A3B8"
             active={activeBtn === 'motor1_diag'}
+            disabled={isLocked}
             onPress={() => send('motor1_diag', 'M1 Diagnostic', '1')}
           />
         </View>
@@ -152,6 +171,7 @@ export default function ControlScreen() {
             sub="'3' → 99%, 10s"
             color="#22C55E"
             active={activeBtn === 'motor2_forward'}
+            disabled={isLocked}
             onPress={() => send('motor2_forward', 'M2 Înainte', '3')}
           />
           <CmdBtn
@@ -160,6 +180,7 @@ export default function ControlScreen() {
             sub="'4' → 99%, 10s"
             color="#F59E0B"
             active={activeBtn === 'motor2_backward'}
+            disabled={isLocked}
             onPress={() => send('motor2_backward', 'M2 Înapoi', '4')}
           />
         </View>
@@ -170,6 +191,7 @@ export default function ControlScreen() {
             sub="'2' → 45%, 3s fwd+bwd"
             color="#94A3B8"
             active={activeBtn === 'motor2_diag'}
+            disabled={isLocked}
             onPress={() => send('motor2_diag', 'M2 Diagnostic', '2')}
           />
         </View>
@@ -183,6 +205,7 @@ export default function ControlScreen() {
             sub="'L' → ≈0V"
             color="#475569"
             active={activeBtn === 'dir1_low'}
+            disabled={isLocked}
             onPress={() => send('dir1_low', 'DIR1 LOW', 'L')}
           />
           <CmdBtn
@@ -191,6 +214,7 @@ export default function ControlScreen() {
             sub="'H' → ≈3.3V"
             color="#6366F1"
             active={activeBtn === 'dir1_high'}
+            disabled={isLocked}
             onPress={() => send('dir1_high', 'DIR1 HIGH', 'H')}
           />
         </View>
@@ -235,15 +259,20 @@ function SectionTitle({ title }: { title: string }) {
   return <Text style={styles.sectionLabel}>{title}</Text>;
 }
 
-function CmdBtn({ icon, label, sub, color, active, onPress }: {
+function CmdBtn({ icon, label, sub, color, active, disabled, onPress }: {
   icon: string; label: string; sub: string; color: string;
-  active: boolean; onPress: () => void;
+  active: boolean; disabled?: boolean; onPress: () => void;
 }) {
   return (
     <TouchableOpacity
-      style={[styles.cmdBtn, { borderColor: color, backgroundColor: active ? color + '33' : 'rgba(255,255,255,0.03)' }]}
+      style={[
+        styles.cmdBtn, 
+        { borderColor: color, backgroundColor: active ? color + '33' : 'rgba(255,255,255,0.03)' },
+        disabled && styles.btnDisabled
+      ]}
       onPress={onPress}
       activeOpacity={0.7}
+      disabled={disabled}
     >
       <Text style={styles.cmdIcon}>{icon}</Text>
       <Text style={[styles.cmdLabel, { color: active ? color : '#F8FAFC' }]}>{label}</Text>
@@ -273,6 +302,15 @@ const styles = StyleSheet.create({
     shadowColor: '#DC2626', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 6,
   },
   stopBtnActive: { backgroundColor: '#7F1D1D', shadowOpacity: 0.1 },
+  btnDisabled: { opacity: 0.35 },
+  lockedBanner: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#3F3F46', 
+    borderRadius: 16, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: '#52525B'
+  },
+  lockedIcon: { fontSize: 24, marginRight: 12 },
+  lockedTextCol: { flex: 1 },
+  lockedTitle: { fontSize: 16, fontWeight: '700', color: '#F4F4F5', marginBottom: 2 },
+  lockedSub: { fontSize: 12, color: '#A1A1AA', lineHeight: 16 },
   stopIcon: { fontSize: 32 },
   stopLabel: { color: '#FFF', fontSize: 20, fontWeight: '900', letterSpacing: 1 },
   stopSub: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontFamily: 'monospace' },

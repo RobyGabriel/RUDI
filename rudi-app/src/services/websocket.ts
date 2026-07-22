@@ -78,7 +78,8 @@ export function disconnectWebSocket() {
 
 export function sendCommand(command: object) {
   if (socket && socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify(command));
+    const role = useRobotStore.getState().currentUser?.role || 'employee';
+    socket.send(JSON.stringify({ ...command, user_role: role }));
   } else {
     console.log("WebSocket nu e conectat încă");
   }

@@ -172,19 +172,23 @@ export default function HomeScreen() {
 
       {/* 2. Robotul VINE spre expeditor */}
       {status === 'coming_to_sender' && currentUser && (
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Se deplasează spre tine</Text>
-          <Text style={styles.ackText}>
-            {isCallConfirmed ? '✅ Comandă confirmată de ESP32' : '⏳ Comandă trimisă. Se așteaptă confirmarea...'}
-          </Text>
-          <Text style={styles.statusDescription}>Robotul se îndreaptă către stația ta. Te rugăm să aștepți.</Text>
-          {isSender && (
+        isSender ? (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Se deplasează spre tine</Text>
+            <Text style={styles.ackText}>
+              {isCallConfirmed ? '✅ Comandă confirmată de ESP32' : '⏳ Comandă trimisă. Se așteaptă confirmarea...'}
+            </Text>
+            <Text style={styles.statusDescription}>Robotul se îndreaptă către stația ta. Te rugăm să aștepți.</Text>
             <TouchableOpacity style={styles.confirmSenderButton} onPress={handleConfirmArrival} activeOpacity={0.8}>
               <Text style={styles.callButtonIcon}>📥</Text>
               <Text style={styles.callButtonText}>Robotul a sosit (Încarcă foi)</Text>
             </TouchableOpacity>
-          )}
-        </View>
+          </View>
+        ) : (
+          <View style={styles.infoCard}>
+            <Text style={styles.infoCardText}>Robotul este ocupat. Se deplasează către {currentDelivery?.from?.name || 'expeditor'}.</Text>
+          </View>
+        )
       )}
 
       {/* 3. Robotul A SOSIT la expeditor */}
@@ -196,28 +200,31 @@ export default function HomeScreen() {
           </TouchableOpacity>
         ) : (
           <View style={styles.infoCard}>
-            <Text style={styles.infoCardText}>Robotul este în curs de încărcare la {currentDelivery?.from.name}.</Text>
+            <Text style={styles.infoCardText}>Robotul este în curs de încărcare la {currentDelivery?.from?.name || 'expeditor'}.</Text>
           </View>
         )
       )}
 
-      {/* 4. Robotul LIVREAZĂ (in_transit) — feedback ACK pentru expeditor */}
-      {status === 'in_transit' && !isRecipient && (
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Livrare în curs</Text>
-          <Text style={styles.ackText}>
-            {isDeliveryConfirmed ? '✅ Comandă confirmată de ESP32' : '⏳ Comandă trimisă. Se așteaptă confirmarea...'}
-          </Text>
-          <Text style={styles.statusDescription}>Robotul se află în drum spre destinație.</Text>
-        </View>
-      )}
-
-      {/* Butonul de confirmare pentru DESTINATAR — apare când e in_transit */}
-      {status === 'in_transit' && isRecipient && (
-        <TouchableOpacity style={styles.confirmSenderButton} onPress={handleMarkArrived} activeOpacity={0.8}>
-          <Text style={styles.callButtonIcon}>📦</Text>
-          <Text style={styles.callButtonText}>Robotul a sosit la mine</Text>
-        </TouchableOpacity>
+      {/* 4. Robotul LIVREAZĂ (in_transit) */}
+      {status === 'in_transit' && (
+        isSender ? (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Livrare în curs</Text>
+            <Text style={styles.ackText}>
+              {isDeliveryConfirmed ? '✅ Comandă confirmată de ESP32' : '⏳ Comandă trimisă. Se așteaptă confirmarea...'}
+            </Text>
+            <Text style={styles.statusDescription}>Robotul se află în drum spre destinație.</Text>
+          </View>
+        ) : isRecipient ? (
+          <TouchableOpacity style={styles.confirmSenderButton} onPress={handleMarkArrived} activeOpacity={0.8}>
+            <Text style={styles.callButtonIcon}>📦</Text>
+            <Text style={styles.callButtonText}>Robotul a sosit la mine</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.infoCard}>
+            <Text style={styles.infoCardText}>Robotul livrează un pachet de la {currentDelivery?.from.name} pentru {currentDelivery?.to?.name}.</Text>
+          </View>
+        )
       )}
 
       {status === 'arrived' && (

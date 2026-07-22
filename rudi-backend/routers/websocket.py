@@ -45,16 +45,56 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-def save_log(data: dict):
+from models import CommandLog, RobotStatus
+from sqlmodel import select
+
+def process_and_save_event(data: dict):
     with Session(engine) as session:
+        # Salvează istoricul
         log_entry = CommandLog(
-            requested_by=data.get("requested_by"),
-            target_employee=data.get("target_employee"),
-            station_id=data.get("station_id"),
-            status=data.get("status"),
+            requested_by=data.get("sender_id") or (data.get("from_user", {}).get("id")),
+            target_employee=data.get("to") or data.get("target_employee"),
+            status=data.get("status") or data.get("type"),
         )
         session.add(log_entry)
+
+        # Actualizează starea curentă a robotului (Active Delivery)
+        status = session.exec(select(RobotStatus)).first()
+        if not status:
+            status = RobotStatus()
+            session.add(status)
+            
+        msg_type = data.get("type")
+        
+        if msg_type == 'call_robot':
+            status.delivery_status = 'coming_to_sender'
+            status.sender_id = str(data.get("sender_id", ""))
+            status.sender_data = json.dumps(data.get("sender")) if data.get("sender") else None
+            status.recipient_id = None
+            status.recipient_data = None
+            
+        elif msg_type == 'robot_arrived_sender':
+            status.delivery_status = 'arrived_at_sender'
+            
+        elif msg_type == 'start_delivery':
+            status.delivery_status = 'in_transit'
+            status.sender_id = str(data.get("from", ""))
+            status.recipient_id = str(data.get("to", ""))
+            status.sender_data = json.dumps(data.get("from_user")) if data.get("from_user") else None
+            status.recipient_data = json.dumps(data.get("to_user")) if data.get("to_user") else None
+            
+        elif msg_type == 'robot_arrived_recipient':
+            status.delivery_status = 'arrived'
+            
+        elif msg_type in ('delivery_confirmed', 'confirm_delivery', 'emergency_stop'):
+            status.delivery_status = 'idle'
+            status.sender_id = None
+            status.recipient_id = None
+            status.sender_data = None
+            status.recipient_data = None
+            
         session.commit()
+        return status.delivery_status
 
 
 @router.websocket("/ws")
@@ -73,10 +113,25 @@ async def websocket_endpoint(websocket: WebSocket):
                 # Este JSON valid venit de la Aplicație
                 msg_type = data.get("type")
                 
+                # Verificăm starea curentă a livrării pentru a aplica logica de blocare
+                with Session(engine) as session:
+                    status_row = session.exec(select(RobotStatus)).first()
+                    current_delivery_status = status_row.delivery_status if status_row else 'idle'
+
+                user_role = data.get("user_role", "employee")
+                
+                # Blocăm comenzile de control (în afară de status sau urgență) dacă robotul e ocupat și userul nu e admin
+                CONTROL_COMMANDS = {'call_robot', 'test_motors', 'motor1_forward', 'motor1_backward', 
+                                    'motor2_forward', 'motor2_backward', 'motor1_diag', 'motor2_diag', 'motor1_reverse'}
+                
+                if msg_type in CONTROL_COMMANDS and current_delivery_status != 'idle':
+                    if user_role != 'admin':
+                        print(f"WS Blocked: {msg_type} respins. Robotul este ocupat (status: {current_delivery_status}) și userul nu este admin.")
+                        # Trimitem un eroare înapoi la utilizator ca să știe
+                        await websocket.send_json({"type": "error", "message": "Robotul este ocupat. Doar adminii îl pot întrerupe."})
+                        continue
+                
                 # Traducem pentru ESP32 (via Serial) și facem broadcast text
-                # Mapare completă conform codului C++ al ESP32:
-                # Mapare completă tip WS → caracter serial ESP32
-                # conform codului C++ din rudi-sim-obstacol/esp32-bridge
                 ESP32_MAP = {
                     "emergency_stop":   "X",    # stopMotors() imediat
                     "call_robot":       "DEMO", # misiunea completă ghidată
@@ -98,10 +153,10 @@ async def websocket_endpoint(websocket: WebSocket):
                 if serial_cmd:
                     asyncio.create_task(send_to_esp32(serial_cmd))
 
-                # Salvăm în log doar evenimentele de livrare relevante
-                LOGGABLE_EVENTS = {'call_robot', 'start_delivery', 'delivery_confirmed', 'confirm_delivery'}
+                # Actualizăm starea și istoricul (dacă e eveniment de livrare)
+                LOGGABLE_EVENTS = {'call_robot', 'robot_arrived_sender', 'start_delivery', 'robot_arrived_recipient', 'delivery_confirmed', 'confirm_delivery', 'emergency_stop'}
                 if msg_type in LOGGABLE_EVENTS:
-                    save_log(data)
+                    process_and_save_event(data)
 
                 # Broadcast JSON pentru sincronizarea tabletelor (App -> App)
                 await manager.broadcast_json(data)

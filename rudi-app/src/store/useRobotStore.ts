@@ -6,7 +6,7 @@
 // ============================================================
 
 import { create } from 'zustand';
-import { User } from '../lib/apiClient';
+import { User, apiFetch } from '../lib/apiClient';
 
 // Tipuri posibile pentru conexiunea WebSocket
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
@@ -63,6 +63,7 @@ type RobotStore = {
   markArrived: () => void;                            // Pas 4: Robotul ajunge la destinatar
   confirmDelivery: () => void;                        // Pas 5: Destinatarul confirmă primirea (robotul devine liber)
   resetRobot: () => void;                             // Reset manual (în caz de eroare)
+  fetchActiveDelivery: () => Promise<void>;           // Preluăm starea de la backend la pornire
 };
 
 // Creăm store-ul cu valorile inițiale și acțiunile
@@ -102,7 +103,7 @@ export const useRobotStore = create<RobotStore>((set) => ({
         };
 
         set((state) => {
-          const isMe = to.id === currentUser?.id;
+          const isMe = to.id === currentUser?.id || from.id === currentUser?.id;
           return {
             robotStatus: 'in_transit',
             currentDelivery: { from, to, startedAt: Date.now() },
@@ -119,7 +120,7 @@ export const useRobotStore = create<RobotStore>((set) => ({
         robotStatus: 'idle',
         currentDelivery: null,
         notifications: state.notifications.map((n) =>
-          n.to.id === currentUser?.id && n.status === 'in_transit'
+          (n.to.id === currentUser?.id || n.from.id === currentUser?.id) && n.status === 'in_transit'
             ? { ...n, status: 'delivered' as const }
             : n
         ),
@@ -225,5 +226,46 @@ export const useRobotStore = create<RobotStore>((set) => ({
       robotStatus: 'idle',
       currentDelivery: null,
     }),
+    
+  // Preluare stare activă de la backend (pentru persistență între sesiuni)
+  fetchActiveDelivery: async () => {
+    try {
+      const data = await apiFetch('/robot/status');
+      
+      // Dacă există un status activ (nenul) și nu este 'idle'
+      if (data && data.delivery_status && data.delivery_status !== 'idle') {
+        const fromUser = data.sender_data ? JSON.parse(data.sender_data) : null;
+        const toUser = data.recipient_data ? JSON.parse(data.recipient_data) : null;
+        
+        // Refacem notificarea în inbox dacă e in_transit
+        set((state) => {
+          let updatedNotifications = state.notifications;
+          if (data.delivery_status === 'in_transit' && fromUser && toUser) {
+            const isMe = toUser.id === state.currentUser?.id || fromUser.id === state.currentUser?.id;
+            // Evităm duplicarea
+            const alreadyExists = state.notifications.some(n => n.from.id === fromUser.id && n.to.id === toUser.id && n.status === 'in_transit');
+            if (isMe && !alreadyExists) {
+              const newNotif: AppNotification = {
+                id: `recovered-${Date.now()}`,
+                from: fromUser,
+                to: toUser,
+                status: 'in_transit',
+                timestamp: Date.now(), // În mod ideal, ar veni de la server
+              };
+              updatedNotifications = [newNotif, ...state.notifications];
+            }
+          }
+          
+          return {
+            robotStatus: data.delivery_status as RobotStatus,
+            currentDelivery: fromUser ? { from: fromUser, to: toUser, startedAt: Date.now() } : null,
+            notifications: updatedNotifications,
+          };
+        });
+      }
+    } catch (err) {
+      console.log('Nu s-a putut prelua starea activă a livrării', err);
+    }
+  },
     
 }));
