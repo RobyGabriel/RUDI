@@ -44,9 +44,20 @@ class RobotStatusRead(BaseModel):
 
 @router.get("/status", response_model=RobotStatusRead)
 def get_robot_status(session: Session = Depends(get_session)):
+    from datetime import datetime, timezone
     status = session.exec(select(RobotStatus)).first()
     if not status:
-        raise HTTPException(status_code=404, detail="Nicio informație de status disponibilă încă")
+        # BUG FIX: În loc de 404, cream automat un rand default 'idle'
+        # Aplicatia mobila sondheaza la fiecare 5s — un 404 repetat rupea starea.
+        status = RobotStatus(
+            battery=None,
+            is_moving=False,
+            delivery_status='idle',
+            last_updated=datetime.now(timezone.utc),
+        )
+        session.add(status)
+        session.commit()
+        session.refresh(status)
     return RobotStatusRead(
         battery=status.battery,
         current_station=status.current_station,

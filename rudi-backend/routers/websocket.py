@@ -52,7 +52,10 @@ def process_and_save_event(data: dict):
     with Session(engine) as session:
         # Salvează istoricul
         log_entry = CommandLog(
-            requested_by=data.get("sender_id") or (data.get("from_user", {}).get("id")),
+            requested_by=data.get("sender_id") or (
+                data.get("from_user", {}).get("id")
+                if isinstance(data.get("from_user"), dict) else None
+            ),
             target_employee=data.get("to") or data.get("target_employee"),
             status=data.get("status") or data.get("type"),
         )
@@ -80,8 +83,12 @@ def process_and_save_event(data: dict):
             status.delivery_status = 'in_transit'
             status.sender_id = str(data.get("from", ""))
             status.recipient_id = str(data.get("to", ""))
-            status.sender_data = json.dumps(data.get("from_user")) if data.get("from_user") else None
-            status.recipient_data = json.dumps(data.get("to_user")) if data.get("to_user") else None
+            # BUG FIX: from_user/to_user pot fi string sau None (date malformate de la client)
+            # json.dumps(string) ar crea un JSON invalid — verificăm că e dict
+            from_user = data.get("from_user")
+            to_user = data.get("to_user")
+            status.sender_data = json.dumps(from_user) if isinstance(from_user, dict) else None
+            status.recipient_data = json.dumps(to_user) if isinstance(to_user, dict) else None
             
         elif msg_type == 'robot_arrived_recipient':
             status.delivery_status = 'arrived'

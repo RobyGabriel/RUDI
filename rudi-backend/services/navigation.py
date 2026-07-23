@@ -1,4 +1,4 @@
-﻿# ==========================================
+# ==========================================
 # RUDI - Serviciu de NavigaÈ›ie (Dijkstra pe Grafuri RFID)
 # ==========================================
 # Bazat pe prototipul colegului, adaptat ca serviciu singleton
@@ -323,9 +323,11 @@ class NavigationService:
             }
 
     def clear_map(self):
-        """È˜terge complet harta (graf-ul) È™i o salveazÄƒ goalÄƒ pe disc."""
+        """Șterge complet harta (graf-ul) și o salvează goală pe disc."""
         with self._lock:
             self._graph = Graph()
+            # BUG FIX: TeachSession referenția graful vechi după clear_map.
+            # Orice date scrise în continuare mergeau în graful șters, nu în cel nou.
             self._teach_session = TeachSession(self._graph)
             self._blocked_edges.clear()
             self._save_map()

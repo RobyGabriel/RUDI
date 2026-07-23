@@ -65,7 +65,11 @@ def create_employee(data: EmployeeCreate, session: Session = Depends(get_session
         role=data.role or "employee",
     )
     session.add(employee)
-    session.commit()
+    try:
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise HTTPException(status_code=409, detail="Un cont cu acest email există deja")
     session.refresh(employee)
     return employee
 
@@ -111,7 +115,10 @@ def delete_employee(employee_id: int, session: Session = Depends(get_session)):
 
 @router.post("/login", response_model=EmployeeRead)
 def login(data: LoginRequest, session: Session = Depends(get_session)):
-    statement = select(Employee).where(Employee.email == data.email)
+    # BUG FIX: comparație case-insensitive pe email
+    # 'Ion@Thecon.ro' și 'ion@thecon.ro' trebuie să fie același cont
+    from sqlalchemy import func
+    statement = select(Employee).where(func.lower(Employee.email) == data.email.lower())
     employee = session.exec(statement).first()
 
     if not employee or not verify_password(data.password, employee.hashed_password):
