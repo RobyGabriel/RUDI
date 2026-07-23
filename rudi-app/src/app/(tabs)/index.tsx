@@ -7,11 +7,11 @@
 
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert } from 'react-native';
-import { connectWebSocket, disconnectWebSocket, sendCommand } from '../../services/websocket';
-import { useRobotStore } from '../../store/useRobotStore';
-import { useMapStore } from '../../store/useMapStore';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { apiFetch } from '../../lib/api';
+import { connectWebSocket, disconnectWebSocket, sendCommand } from '../../services/websocket';
+import { useMapStore } from '../../store/useMapStore';
+import { useRobotStore } from '../../store/useRobotStore';
 
 // Configurația vizuală pentru fiecare stare a robotului
 const STATUS_CONFIG = {
@@ -70,19 +70,18 @@ export default function HomeScreen() {
   }, []);
 
   const statusConfig = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.idle;
-  const isSender = currentDelivery?.from.id === currentUser?.id;
-  const isRecipient = currentDelivery?.to?.id === currentUser?.id;
+  const isSender = String(currentDelivery?.from?.id) === String(currentUser?.id);
+  const isRecipient = String(currentDelivery?.to?.id) === String(currentUser?.id);
 
-  // Când primim mesaj de la server că starea s-a schimbat, resetăm spinner-ul
+  // Când primim orice mesaj valid de la server, resetăm spinner-ul
   useEffect(() => {
-    setIsProcessing(false);
-  }, [status]);
-
-  // Ascultăm erorile venite de la backend (ex: robot ocupat)
-  useEffect(() => {
-    if (lastMessage?.type === 'error') {
-      Alert.alert('Eroare', String(lastMessage.message));
+    if (lastMessage) {
       setIsProcessing(false);
+      
+      // Dacă e eroare, afișăm alerta
+      if (lastMessage.type === 'error') {
+        Alert.alert('Eroare', String(lastMessage.message));
+      }
     }
   }, [lastMessage]);
 
@@ -91,7 +90,10 @@ export default function HomeScreen() {
     if (!currentUser || isProcessing) return;
     setIsProcessing(true);
     const sent = sendCommand({ type: 'call_robot', sender_id: currentUser.id, sender: currentUser, status: 'coming_to_sender' });
-    if (!sent) setIsProcessing(false);
+    if (!sent) {
+      Alert.alert('Deconectat', 'Nu ești conectat la server. Verifică-ți conexiunea la internet și încearcă din nou.');
+      setIsProcessing(false);
+    }
   };
 
   // Handler Confirmare Sosire la Mine (Pasul 2)
@@ -99,7 +101,10 @@ export default function HomeScreen() {
     if (isProcessing) return;
     setIsProcessing(true);
     const sent = sendCommand({ type: 'robot_arrived_sender', status: 'arrived_at_sender' });
-    if (!sent) setIsProcessing(false);
+    if (!sent) {
+      Alert.alert('Deconectat', 'Nu ești conectat la server. Verifică-ți conexiunea la internet și încearcă din nou.');
+      setIsProcessing(false);
+    }
   };
 
   // Handler Confirmare Sosire la Destinatar (Pasul 4)
@@ -107,7 +112,10 @@ export default function HomeScreen() {
     if (isProcessing) return;
     setIsProcessing(true);
     const sent = sendCommand({ type: 'robot_arrived_recipient', status: 'arrived' });
-    if (!sent) setIsProcessing(false);
+    if (!sent) {
+      Alert.alert('Deconectat', 'Nu ești conectat la server. Verifică-ți conexiunea de internet și încearcă din nou.');
+      setIsProcessing(false);
+    }
   };
 
   // Handler Oprire de Urgență
@@ -165,6 +173,26 @@ export default function HomeScreen() {
               </Text>
             )}
           </View>
+        )}
+
+        {/* Buton Override pentru Admini */}
+        {status !== 'idle' && currentUser?.role === 'admin' && (
+          <TouchableOpacity 
+            style={[
+              styles.callButton, 
+              { marginTop: 16, backgroundColor: '#8B5CF6', width: '100%', justifyContent: 'center' }, 
+              (isProcessing || isSender) && styles.buttonDisabled
+            ]} 
+            onPress={handleCallRobot} 
+            activeOpacity={0.8}
+            disabled={isProcessing || isSender}
+          >
+            <Text style={styles.callButtonText}>
+              {isSender 
+                ? "Robotul îți este deja atribuit" 
+                : (isProcessing ? "Se procesează..." : "Cheamă robotul prioritar (Admin)")}
+            </Text>
+          </TouchableOpacity>
         )}
       </View>
 

@@ -2,12 +2,12 @@
 // src/app/send.tsx — Selectează destinatarul și trimite robotul
 // ============================================================
 
-import { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { mockEmployees, User } from '../lib/apiClient';
-import { useRobotStore } from '../store/useRobotStore';
 import { sendCommand } from '../services/websocket';
+import { useRobotStore } from '../store/useRobotStore';
 
 export default function SendScreen() {
   const router = useRouter();
@@ -56,7 +56,10 @@ export default function SendScreen() {
       status: 'in_transit',
     });
     
-    if (!sent) setSending(false);
+    if (!sent) {
+      Alert.alert('Deconectat', 'Nu ești conectat la server. Verifică-ți conexiunea la internet și încearcă din nou.');
+      setSending(false);
+    }
   };
 
   const renderEmployee = ({ item }: { item: User }) => {

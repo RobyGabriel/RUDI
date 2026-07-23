@@ -2,10 +2,11 @@
 // src/app/confirm.tsx — Destinatarul confirmă că a primit foile
 // ============================================================
 
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useRobotStore } from '../store/useRobotStore';
+import { useEffect, useState } from 'react';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { sendCommand } from '../services/websocket';
+import { useRobotStore } from '../store/useRobotStore';
 
 export default function ConfirmScreen() {
   const router = useRouter();
@@ -31,7 +32,10 @@ export default function ConfirmScreen() {
     setConfirming(true);
     // Trimitem confirmarea prin WebSocket
     const sent = sendCommand({ type: 'delivery_confirmed', status: 'delivered' });
-    if (!sent) setConfirming(false);
+    if (!sent) {
+      Alert.alert('Deconectat', 'Nu ești conectat la server. Verifică-ți conexiunea la internet și încearcă din nou.');
+      setConfirming(false);
+    }
   };
 
   return (
