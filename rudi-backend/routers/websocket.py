@@ -152,16 +152,23 @@ async def websocket_endpoint(websocket: WebSocket):
                 with Session(engine) as session:
                     status_row = session.exec(select(RobotStatus)).first()
                     current_delivery_status = status_row.delivery_status if status_row else 'idle'
+                    current_sender_id = status_row.sender_id if status_row else None
 
                 user_role = data.get("user_role", "employee")
+                user_id = str(data.get("from_user", {}).get("id", "")) if isinstance(data.get("from_user"), dict) else str(data.get("sender_id", ""))
                 
-                # Blocăm comenzile de control dacă robotul e ocupat și userul nu e admin
-                CONTROL_COMMANDS = {'call_robot', 'test_motors', 'start_delivery'}
-                
-                if msg_type in CONTROL_COMMANDS and current_delivery_status != 'idle':
+                # Blocăm 'call_robot' și 'test_motors' dacă robotul e ocupat și userul nu e admin
+                if msg_type in {'call_robot', 'test_motors'} and current_delivery_status != 'idle':
                     if user_role != 'admin':
                         print(f"WS Blocked: {msg_type} respins. Robotul este ocupat (status: {current_delivery_status}) și userul nu este admin.")
                         await websocket.send_json({"type": "error", "message": "Robotul este ocupat. Doar adminii îl pot întrerupe."})
+                        continue
+                        
+                # Blocăm 'start_delivery' dacă robotul NU e la expeditor (sau nu e expeditorul corect)
+                if msg_type == 'start_delivery' and current_delivery_status != 'idle':
+                    if current_delivery_status != 'arrived_at_sender' and user_role != 'admin':
+                        print(f"WS Blocked: {msg_type} respins. Robotul nu a sosit la expeditor încă.")
+                        await websocket.send_json({"type": "error", "message": "Nu poți trimite comanda. Robotul este ocupat cu altă livrare."})
                         continue
 
                 # --- INTEGRARE CU ESP32 (HTTP) ---

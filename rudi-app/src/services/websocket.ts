@@ -76,11 +76,13 @@ export function disconnectWebSocket() {
   useRobotStore.getState().setConnectionStatus("disconnected");
 }
 
-export function sendCommand(command: object) {
+export function sendCommand(command: object): boolean {
   if (socket && socket.readyState === WebSocket.OPEN) {
     const role = useRobotStore.getState().currentUser?.role || 'employee';
     socket.send(JSON.stringify({ ...command, user_role: role }));
+    return true;
   } else {
     console.log("WebSocket nu e conectat încă");
+    return false;
   }
 }

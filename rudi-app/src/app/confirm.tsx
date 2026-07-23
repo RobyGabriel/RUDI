@@ -2,14 +2,14 @@
 // src/app/confirm.tsx — Destinatarul confirmă că a primit foile
 // ============================================================
 
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useRobotStore } from '../store/useRobotStore';
 import { sendCommand } from '../services/websocket';
 
 export default function ConfirmScreen() {
   const router = useRouter();
-  const { currentDelivery, robotStatus } = useRobotStore();
+  const { currentDelivery, robotStatus, lastMessage } = useRobotStore();
   const [confirming, setConfirming] = useState(false);
 
   // Așteptăm ca serverul să trimită mesajul că statusul a devenit idle
@@ -19,11 +19,19 @@ export default function ConfirmScreen() {
     }
   }, [confirming, robotStatus]);
 
+  // Ascultăm erorile (ex: robot ocupat/deconectat)
+  useEffect(() => {
+    if (confirming && lastMessage?.type === 'error') {
+      Alert.alert('Eroare', String(lastMessage.message));
+      setConfirming(false);
+    }
+  }, [lastMessage, confirming]);
+
   const handleConfirm = () => {
     setConfirming(true);
     // Trimitem confirmarea prin WebSocket
-    sendCommand({ type: 'delivery_confirmed', status: 'delivered' });
-    // Nu mai modificăm starea local; așteptăm WebSocket-ul
+    const sent = sendCommand({ type: 'delivery_confirmed', status: 'delivered' });
+    if (!sent) setConfirming(false);
   };
 
   return (

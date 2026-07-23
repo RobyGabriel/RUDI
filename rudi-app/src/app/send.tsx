@@ -3,7 +3,7 @@
 // ============================================================
 
 import { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { mockEmployees, User } from '../lib/apiClient';
 import { useRobotStore } from '../store/useRobotStore';
@@ -11,7 +11,7 @@ import { sendCommand } from '../services/websocket';
 
 export default function SendScreen() {
   const router = useRouter();
-  const { currentUser, robotStatus } = useRobotStore();
+  const { currentUser, robotStatus, lastMessage } = useRobotStore();
 
   const [employees, setEmployees] = useState<User[]>([]);
   const [selected, setSelected] = useState<User | null>(null);
@@ -24,6 +24,14 @@ export default function SendScreen() {
       router.replace('/(tabs)');
     }
   }, [robotStatus, sending]);
+
+  // Ascultăm erorile (ex: robot ocupat)
+  useEffect(() => {
+    if (sending && lastMessage?.type === 'error') {
+      Alert.alert('Eroare', String(lastMessage.message));
+      setSending(false);
+    }
+  }, [lastMessage, sending]);
 
   // Încărcăm lista de angajați când se deschide ecranul
   useEffect(() => {
@@ -39,7 +47,7 @@ export default function SendScreen() {
     setSending(true);
 
     // Trimitem comanda prin WebSocket
-    sendCommand({
+    const sent = sendCommand({
       type: 'start_delivery',
       from: currentUser.id,
       to: selected.id,
@@ -48,7 +56,7 @@ export default function SendScreen() {
       status: 'in_transit',
     });
     
-    // Nu mai modificăm starea local; așteptăm WebSocket-ul
+    if (!sent) setSending(false);
   };
 
   const renderEmployee = ({ item }: { item: User }) => {

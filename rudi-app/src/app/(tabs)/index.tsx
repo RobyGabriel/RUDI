@@ -7,7 +7,7 @@
 
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert } from 'react-native';
 import { connectWebSocket, disconnectWebSocket, sendCommand } from '../../services/websocket';
 import { useRobotStore } from '../../store/useRobotStore';
 import { useMapStore } from '../../store/useMapStore';
@@ -56,7 +56,7 @@ export default function HomeScreen() {
   const router = useRouter();
 
   // Citim datele din Zustand
-  const { robotStatus: status, currentUser, connectionStatus, currentDelivery } = useRobotStore();
+  const { robotStatus: status, currentUser, connectionStatus, currentDelivery, lastMessage } = useRobotStore();
   const { robotPose } = useMapStore();
   const isCallConfirmed = robotPose?.last_command_ack === 'call_robot';
   const isDeliveryConfirmed = robotPose?.last_command_ack === 'start_delivery';
@@ -78,26 +78,36 @@ export default function HomeScreen() {
     setIsProcessing(false);
   }, [status]);
 
+  // Ascultăm erorile venite de la backend (ex: robot ocupat)
+  useEffect(() => {
+    if (lastMessage?.type === 'error') {
+      Alert.alert('Eroare', String(lastMessage.message));
+      setIsProcessing(false);
+    }
+  }, [lastMessage]);
+
   // Handler Chemare Robot (Pasul 1)
   const handleCallRobot = () => {
     if (!currentUser || isProcessing) return;
     setIsProcessing(true);
-    sendCommand({ type: 'call_robot', sender_id: currentUser.id, sender: currentUser, status: 'coming_to_sender' });
-    // Nu mai modificăm starea local; așteptăm WebSocket-ul
+    const sent = sendCommand({ type: 'call_robot', sender_id: currentUser.id, sender: currentUser, status: 'coming_to_sender' });
+    if (!sent) setIsProcessing(false);
   };
 
   // Handler Confirmare Sosire la Mine (Pasul 2)
   const handleConfirmArrival = () => {
     if (isProcessing) return;
     setIsProcessing(true);
-    sendCommand({ type: 'robot_arrived_sender', status: 'arrived_at_sender' });
+    const sent = sendCommand({ type: 'robot_arrived_sender', status: 'arrived_at_sender' });
+    if (!sent) setIsProcessing(false);
   };
 
   // Handler Confirmare Sosire la Destinatar (Pasul 4)
   const handleMarkArrived = () => {
     if (isProcessing) return;
     setIsProcessing(true);
-    sendCommand({ type: 'robot_arrived_recipient', status: 'arrived' });
+    const sent = sendCommand({ type: 'robot_arrived_recipient', status: 'arrived' });
+    if (!sent) setIsProcessing(false);
   };
 
   // Handler Oprire de Urgență
