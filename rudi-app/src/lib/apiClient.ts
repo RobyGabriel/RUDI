@@ -39,9 +39,18 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
   if (!response.ok) {
     let errorMessage = `HTTP error! status: ${response.status}`;
     try {
-      const errData = await response.json();
-      if (errData && errData.detail) {
-        errorMessage = typeof errData.detail === 'string' ? errData.detail : JSON.stringify(errData.detail);
+      // Verificăm dacă răspunsul este JSON înainte să parsam
+      const text = await response.text();
+      try {
+        const errData = JSON.parse(text);
+        if (errData && errData.detail) {
+          errorMessage = typeof errData.detail === 'string' ? errData.detail : JSON.stringify(errData.detail);
+        }
+      } catch (_) {
+        // Nu e JSON (ex: pagină HTML 502 de la ngrok)
+        if (response.status === 502) {
+          errorMessage = "Eroare de conexiune (502 Bad Gateway). Robotul este offline.";
+        }
       }
     } catch (_) {}
     throw new Error(errorMessage);
@@ -70,8 +79,26 @@ export const mockAuth = {
     try {
       const stored = await AsyncStorage.getItem('rudi_user');
       if (stored) {
-        _currentUser = JSON.parse(stored);
-        return _currentUser;
+        const parsed = JSON.parse(stored);
+        
+        try {
+          // Validăm dacă utilizatorul mai există la backend
+          const list = await apiFetch('/employees');
+          const me = list.find((e: any) => e.email === parsed.email);
+          if (!me) {
+            console.log('Utilizatorul a fost șters din backend. Delogare forțată.');
+            await AsyncStorage.removeItem('rudi_user');
+            return null;
+          }
+          _currentUser = mapEmployeeToUser(me);
+          await AsyncStorage.setItem('rudi_user', JSON.stringify(_currentUser));
+          return _currentUser;
+        } catch (e) {
+          // Dacă backend-ul e picat, îi permitem accesul offline/cu datele locale temporar
+          console.warn('Backend indisponibil pentru validare. Păstrăm sesiunea locală.');
+          _currentUser = parsed;
+          return _currentUser;
+        }
       }
     } catch (e) {
       console.error('Failed to load user session', e);

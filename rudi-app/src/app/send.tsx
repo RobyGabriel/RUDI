@@ -11,12 +11,19 @@ import { sendCommand } from '../services/websocket';
 
 export default function SendScreen() {
   const router = useRouter();
-  const { currentUser, startDelivery } = useRobotStore();
+  const { currentUser, robotStatus } = useRobotStore();
 
   const [employees, setEmployees] = useState<User[]>([]);
   const [selected, setSelected] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+
+  // Redirecționăm doar după ce primim confirmarea de la WebSocket
+  useEffect(() => {
+    if (sending && robotStatus === 'in_transit') {
+      router.replace('/(tabs)');
+    }
+  }, [robotStatus, sending]);
 
   // Încărcăm lista de angajați când se deschide ecranul
   useEffect(() => {
@@ -31,7 +38,7 @@ export default function SendScreen() {
     if (!selected || !currentUser) return;
     setSending(true);
 
-    // Trimitem comanda prin WebSocket (codul colegului)
+    // Trimitem comanda prin WebSocket
     sendCommand({
       type: 'start_delivery',
       from: currentUser.id,
@@ -40,11 +47,8 @@ export default function SendScreen() {
       to_user: selected,
       status: 'in_transit',
     });
-
-    // Actualizăm starea locală
-    startDelivery(currentUser, selected);
-
-    router.replace('/(tabs)');
+    
+    // Nu mai modificăm starea local; așteptăm WebSocket-ul
   };
 
   const renderEmployee = ({ item }: { item: User }) => {

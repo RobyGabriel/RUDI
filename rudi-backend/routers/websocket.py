@@ -83,17 +83,45 @@ def process_and_save_event(data: dict):
             status.delivery_status = 'in_transit'
             status.sender_id = str(data.get("from", ""))
             status.recipient_id = str(data.get("to", ""))
-            # BUG FIX: from_user/to_user pot fi string sau None (date malformate de la client)
-            # json.dumps(string) ar crea un JSON invalid — verificăm că e dict
             from_user = data.get("from_user")
             to_user = data.get("to_user")
             status.sender_data = json.dumps(from_user) if isinstance(from_user, dict) else None
             status.recipient_data = json.dumps(to_user) if isinstance(to_user, dict) else None
             
+            # Creare Notificare în DB pentru istoricul destinatarului (și al expeditorului)
+            if isinstance(to_user, dict) and to_user.get("email"):
+                from models import Notification
+                new_notif = Notification(
+                    recipient_email=to_user.get("email"),
+                    sender_email=from_user.get("email") if isinstance(from_user, dict) else None,
+                    message="Ai primit un pachet nou.",
+                    status="pending"
+                )
+                session.add(new_notif)
+            
         elif msg_type == 'robot_arrived_recipient':
             status.delivery_status = 'arrived'
             
         elif msg_type in ('delivery_confirmed', 'confirm_delivery', 'emergency_stop'):
+            # Dacă era o livrare în curs, o marcăm ca finalizată în notificări
+            if msg_type in ('delivery_confirmed', 'confirm_delivery') and status.recipient_data:
+                try:
+                    to_user = json.loads(status.recipient_data)
+                    if to_user and to_user.get("email"):
+                        from models import Notification
+                        # Căutăm ultima notificare pending pentru acest user
+                        notif = session.exec(
+                            select(Notification)
+                            .where(Notification.recipient_email == to_user.get("email"))
+                            .where(Notification.status == "pending")
+                            .order_by(Notification.id.desc())
+                        ).first()
+                        if notif:
+                            notif.status = "delivered"
+                            session.add(notif)
+                except Exception as e:
+                    print("Eroare la marcarea notificării ca delivered:", e)
+
             status.delivery_status = 'idle'
             status.sender_id = None
             status.recipient_id = None

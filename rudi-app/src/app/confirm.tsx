@@ -9,17 +9,21 @@ import { sendCommand } from '../services/websocket';
 
 export default function ConfirmScreen() {
   const router = useRouter();
-  const { currentDelivery, confirmDelivery } = useRobotStore();
+  const { currentDelivery, robotStatus } = useRobotStore();
+  const [confirming, setConfirming] = useState(false);
+
+  // Așteptăm ca serverul să trimită mesajul că statusul a devenit idle
+  useEffect(() => {
+    if (confirming && robotStatus === 'idle') {
+      router.replace('/(tabs)');
+    }
+  }, [confirming, robotStatus]);
 
   const handleConfirm = () => {
+    setConfirming(true);
     // Trimitem confirmarea prin WebSocket
     sendCommand({ type: 'delivery_confirmed', status: 'delivered' });
-
-    // Resetăm starea robotului în store
-    confirmDelivery();
-
-    // Mergem înapoi la home
-    router.replace('/(tabs)');
+    // Nu mai modificăm starea local; așteptăm WebSocket-ul
   };
 
   return (
@@ -49,8 +53,15 @@ export default function ConfirmScreen() {
       </Text>
 
       {/* Buton mare de confirmare */}
-      <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm} activeOpacity={0.8}>
-        <Text style={styles.confirmButtonText}>✅  Am primit foile</Text>
+      <TouchableOpacity 
+        style={[styles.confirmButton, confirming && { opacity: 0.6 }]} 
+        onPress={handleConfirm} 
+        activeOpacity={0.8}
+        disabled={confirming}
+      >
+        <Text style={styles.confirmButtonText}>
+          {confirming ? "Se confirmă..." : "✅  Am primit foile"}
+        </Text>
       </TouchableOpacity>
 
     </View>

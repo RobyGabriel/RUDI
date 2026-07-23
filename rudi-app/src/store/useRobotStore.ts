@@ -64,10 +64,11 @@ type RobotStore = {
   confirmDelivery: () => void;                        // Pas 5: Destinatarul confirmă primirea (robotul devine liber)
   resetRobot: () => void;                             // Reset manual (în caz de eroare)
   fetchActiveDelivery: () => Promise<void>;           // Preluăm starea de la backend la pornire
+  fetchNotifications: () => Promise<void>;            // Preluăm istoricul notificărilor
 };
 
 // Creăm store-ul cu valorile inițiale și acțiunile
-export const useRobotStore = create<RobotStore>((set) => ({
+export const useRobotStore = create<RobotStore>((set, get) => ({
   // Conexiune
   connectionStatus: 'connecting',
   lastMessage: null,
@@ -258,13 +259,43 @@ export const useRobotStore = create<RobotStore>((set) => ({
           
           return {
             robotStatus: data.delivery_status as RobotStatus,
-            currentDelivery: fromUser ? { from: fromUser, to: toUser, startedAt: Date.now() } : null,
+            currentDelivery: fromUser ? { 
+              from: fromUser, 
+              to: toUser, 
+              startedAt: state.currentDelivery?.startedAt || Date.now() 
+            } : null,
             notifications: updatedNotifications,
           };
         });
       }
     } catch (err) {
       console.log('Nu s-a putut prelua starea activă a livrării', err);
+    }
+  },
+
+  // Preluare istoric notificări
+  fetchNotifications: async () => {
+    try {
+      const user = get().currentUser;
+      if (!user) return;
+      const data = await apiFetch(`/notifications/${user.email}`);
+      if (Array.isArray(data)) {
+        // Mapăm datele de la backend la formatul local AppNotification
+        const mapped: AppNotification[] = data.map((n: any) => ({
+          id: String(n.id),
+          from: { id: '', email: n.sender_email, name: n.sender_email || 'Sistem', office: '', role: 'employee' },
+          to: user,
+          status: n.status === 'pending' ? 'in_transit' : 'delivered',
+          timestamp: new Date(n.created_at).getTime(),
+        }));
+        
+        // Sortăm descrescător după timestamp
+        mapped.sort((a, b) => b.timestamp - a.timestamp);
+        
+        set({ notifications: mapped });
+      }
+    } catch (err) {
+      console.log('Nu s-au putut prelua notificările', err);
     }
   },
     

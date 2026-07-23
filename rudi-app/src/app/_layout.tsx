@@ -26,6 +26,7 @@ export default function RootLayout() {
       if (user) {
         setCurrentUser(user);
         await useRobotStore.getState().fetchActiveDelivery();
+        await useRobotStore.getState().fetchNotifications();
         
         // Verificăm statusul livrării în mod constant (la fiecare 5 secunde)
         // pentru a ne asigura că aplicația e mereu sincronizată cu realitatea,

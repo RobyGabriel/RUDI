@@ -56,11 +56,12 @@ export default function HomeScreen() {
   const router = useRouter();
 
   // Citim datele din Zustand
-  const { robotStatus: status, currentUser, connectionStatus, callRobot, markArrived, confirmArrivalAtSender } = useRobotStore();
+  const { robotStatus: status, currentUser, connectionStatus, currentDelivery } = useRobotStore();
   const { robotPose } = useMapStore();
-  const currentDelivery = useRobotStore((s) => s.currentDelivery);
   const isCallConfirmed = robotPose?.last_command_ack === 'call_robot';
   const isDeliveryConfirmed = robotPose?.last_command_ack === 'start_delivery';
+
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Conexiunea WebSocket
   useEffect(() => {
@@ -72,23 +73,31 @@ export default function HomeScreen() {
   const isSender = currentDelivery?.from.id === currentUser?.id;
   const isRecipient = currentDelivery?.to?.id === currentUser?.id;
 
+  // Când primim mesaj de la server că starea s-a schimbat, resetăm spinner-ul
+  useEffect(() => {
+    setIsProcessing(false);
+  }, [status]);
+
   // Handler Chemare Robot (Pasul 1)
   const handleCallRobot = () => {
-    if (!currentUser) return;
+    if (!currentUser || isProcessing) return;
+    setIsProcessing(true);
     sendCommand({ type: 'call_robot', sender_id: currentUser.id, sender: currentUser, status: 'coming_to_sender' });
-    callRobot(currentUser);
+    // Nu mai modificăm starea local; așteptăm WebSocket-ul
   };
 
   // Handler Confirmare Sosire la Mine (Pasul 2)
   const handleConfirmArrival = () => {
+    if (isProcessing) return;
+    setIsProcessing(true);
     sendCommand({ type: 'robot_arrived_sender', status: 'arrived_at_sender' });
-    confirmArrivalAtSender();
   };
 
   // Handler Confirmare Sosire la Destinatar (Pasul 4)
   const handleMarkArrived = () => {
+    if (isProcessing) return;
+    setIsProcessing(true);
     sendCommand({ type: 'robot_arrived_recipient', status: 'arrived' });
-    markArrived();
   };
 
   // Handler Oprire de Urgență
@@ -164,9 +173,14 @@ export default function HomeScreen() {
 
       {/* 1. Robotul este LIBER */}
       {status === 'idle' && (
-        <TouchableOpacity style={styles.callButton} onPress={handleCallRobot} activeOpacity={0.8}>
+        <TouchableOpacity 
+          style={[styles.callButton, isProcessing && styles.buttonDisabled]} 
+          onPress={handleCallRobot} 
+          activeOpacity={0.8}
+          disabled={isProcessing}
+        >
           <Text style={styles.callButtonIcon}>🔔</Text>
-          <Text style={styles.callButtonText}>Cheamă robotul</Text>
+          <Text style={styles.callButtonText}>{isProcessing ? "Se trimite..." : "Cheamă robotul"}</Text>
         </TouchableOpacity>
       )}
 
@@ -179,9 +193,14 @@ export default function HomeScreen() {
               {isCallConfirmed ? '✅ Comandă confirmată de ESP32' : '⏳ Comandă trimisă. Se așteaptă confirmarea...'}
             </Text>
             <Text style={styles.statusDescription}>Robotul se îndreaptă către stația ta. Te rugăm să aștepți.</Text>
-            <TouchableOpacity style={styles.confirmSenderButton} onPress={handleConfirmArrival} activeOpacity={0.8}>
+            <TouchableOpacity 
+              style={[styles.confirmSenderButton, isProcessing && styles.buttonDisabled]} 
+              onPress={handleConfirmArrival} 
+              activeOpacity={0.8}
+              disabled={isProcessing}
+            >
               <Text style={styles.callButtonIcon}>📥</Text>
-              <Text style={styles.callButtonText}>Robotul a sosit (Încarcă foi)</Text>
+              <Text style={styles.callButtonText}>{isProcessing ? "Se confirmă..." : "Robotul a sosit (Încarcă foi)"}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -216,9 +235,14 @@ export default function HomeScreen() {
             <Text style={styles.statusDescription}>Robotul se află în drum spre destinație.</Text>
           </View>
         ) : isRecipient ? (
-          <TouchableOpacity style={styles.confirmSenderButton} onPress={handleMarkArrived} activeOpacity={0.8}>
+          <TouchableOpacity 
+            style={[styles.confirmSenderButton, isProcessing && styles.buttonDisabled]} 
+            onPress={handleMarkArrived} 
+            activeOpacity={0.8}
+            disabled={isProcessing}
+          >
             <Text style={styles.callButtonIcon}>📦</Text>
-            <Text style={styles.callButtonText}>Robotul a sosit la mine</Text>
+            <Text style={styles.callButtonText}>{isProcessing ? "Se confirmă..." : "Robotul a sosit la mine"}</Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.infoCard}>
@@ -271,6 +295,7 @@ const styles = StyleSheet.create({
   confirmRecipientButton: { backgroundColor: '#22C55E', borderRadius: 16, padding: 18, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 10 },
   callButtonText: { fontSize: 17, fontWeight: '700', color: '#fff' },
   callButtonIcon: { fontSize: 20 },
+  buttonDisabled: { opacity: 0.6 },
   infoCard: { backgroundColor: '#161929', borderRadius: 16, padding: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
   infoCardText: { fontSize: 14, color: '#94A3B8', textAlign: 'center', lineHeight: 20 },
   ackText: { fontSize: 14, fontWeight: '600', color: '#818CF8', marginBottom: 12 },
